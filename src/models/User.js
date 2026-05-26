@@ -21,20 +21,19 @@ const userSchema = new mongoose.Schema(
       required: [true, "Name is required"],
       trim: true,
     },
-    email: {
+    phone: {
       type: String,
-      required: [true, "Email is required"],
+      required: [true, "Phone is required"],
       unique: true,
       trim: true,
-      lowercase: true,
     },
     password: {
       type: String,
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters"],
-      select: false, // NEVER include password in find() results by default
+      select: false,
     },
-    phone: { type: String, default: "", trim: true },
+
     role: {
       type: String,
       enum: ROLES,
@@ -75,7 +74,7 @@ userSchema.pre("save", async function (next) {
  * Instance method — compares a plain-text password with the stored hash.
  *
  * HOW TO USE:
- *   const user = await User.findOne({ email }).select("+password");
+ *   const user = await User.findOne({ phone }).select("+password");
  *   const isMatch = await user.comparePassword("plaintext123");
  *
  * WHY select("+password")?
