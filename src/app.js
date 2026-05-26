@@ -16,6 +16,8 @@ const expenseRoutes = require("./routes/expenseRoutes");
 const staffRoutes = require("./routes/staffRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+const smsRoutes = require("./routes/smsRoutes");
+
 
 const app = express();
 
@@ -49,6 +51,8 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/sms", smsRoutes);
+
 
 // --- Health Check ---
 app.get("/api/health", (req, res) => {

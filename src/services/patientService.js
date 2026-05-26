@@ -4,6 +4,8 @@ const AppError = require("../utils/AppError");
 const generatePatientId = require("../utils/generatePatientId");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
+const { sendSingleSms } = require("./smsService");
+
 
 const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit = 20 }) => {
   const filter = {};
@@ -85,7 +87,23 @@ const createPatient = async (body, user) => {
     refModel: "Patient",
   });
 
+  // Trigger admission SMS for inpatient
+  if (body.phone && body.type === "inpatient") {
+    sendSingleSms(
+      body.phone,
+      `Dear ${patient.name}, you have been admitted. Patient ID: ${patientId}. Room: ${patient.roomName || "N/A"}, Bed: ${patient.bedName || "N/A"}. We wish you a speedy recovery.`,
+      {
+        type: "admission",
+        refId: patient._id,
+        refModel: "Patient",
+        sentBy: user._id,
+        sentByName: user.name
+      }
+    ).catch((err) => console.error("Admission SMS trigger failed:", err.message));
+  }
+
   return patient;
+
 };
 
 const updatePatient = async (id, body) => {
@@ -150,7 +168,23 @@ const dischargePatient = async (id, user) => {
     refModel: "Patient",
   });
 
+  // Trigger discharge SMS
+  if (patient.phone) {
+    sendSingleSms(
+      patient.phone,
+      `Dear ${patient.name}, you have been discharged. Patient ID: ${patient.patientId}. We wish you good health. Thank you for choosing us.`,
+      {
+        type: "discharge",
+        refId: patient._id,
+        refModel: "Patient",
+        sentBy: user._id,
+        sentByName: user.name
+      }
+    ).catch((err) => console.error("Discharge SMS trigger failed:", err.message));
+  }
+
   return patient;
+
 };
 
 module.exports = {

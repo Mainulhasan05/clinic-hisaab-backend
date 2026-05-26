@@ -3,6 +3,8 @@ const AppError = require("../utils/AppError");
 const generateInvoiceId = require("../utils/generateInvoiceId");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
+const { sendSingleSms } = require("./smsService");
+
 
 /**
  * Calculate invoice status from payment amounts.
@@ -61,7 +63,23 @@ const createInvoice = async (body, user) => {
     refModel: "Invoice",
   });
 
+  // Fire-and-forget SMS notification
+  if (body.patientPhone) {
+    sendSingleSms(
+      body.patientPhone,
+      `Dear ${body.patientName}, your bill of ৳${body.totalAmount} has been generated. Invoice: ${invoiceId}. Paid: ৳${body.paidAmount || 0}. Due: ৳${body.totalAmount - (body.paidAmount || 0)}. Thank you.`,
+      {
+        type: "billing",
+        refId: invoice._id,
+        refModel: "Invoice",
+        sentBy: user._id,
+        sentByName: user.name
+      }
+    ).catch((err) => console.error("Billing SMS trigger failed:", err.message));
+  }
+
   return invoice;
+
 };
 
 const updateInvoice = async (id, body) => {
