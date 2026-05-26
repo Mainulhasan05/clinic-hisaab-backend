@@ -1,12 +1,13 @@
 const Expense = require("../models/Expense");
 const AppError = require("../utils/AppError");
+const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 const getAllExpenses = async ({ search = "", category = "all", page = 1, limit = 50 }) => {
   const filter = {};
   if (category !== "all") filter.category = category;
   if (search) {
-    filter.description = { $regex: search, $options: "i" };
+    filter.description = { $regex: escapeRegex(search), $options: "i" };
   }
 
   const skip = (page - 1) * limit;

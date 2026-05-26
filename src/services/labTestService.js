@@ -1,11 +1,12 @@
 const LabTest = require("../models/LabTest");
 const AppError = require("../utils/AppError");
+const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 const getAllTests = async ({ search = "" }) => {
   const filter = { isActive: true };
   if (search) {
-    filter.name = { $regex: search, $options: "i" };
+    filter.name = { $regex: escapeRegex(search), $options: "i" };
   }
   return LabTest.find(filter).sort({ name: 1 });
 };

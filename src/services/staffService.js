@@ -1,13 +1,15 @@
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
+const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 const getAllStaff = async ({ search = "" }) => {
   const filter = {};
   if (search) {
+    const escapedSearch = escapeRegex(search);
     filter.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
+      { name: { $regex: escapedSearch, $options: "i" } },
+      { email: { $regex: escapedSearch, $options: "i" } },
     ];
   }
   return User.find(filter).select("-password").sort({ createdAt: -1 });
@@ -37,9 +39,15 @@ const updateStaff = async (id, body, user) => {
     throw new AppError("You cannot change your own role.", 400);
   }
 
-  const staff = await User.findByIdAndUpdate(id, body, { new: true, runValidators: true })
-    .select("-password");
-  if (!staff) throw new AppError("Staff member not found.", 404);
+  const staffDoc = await User.findById(id);
+  if (!staffDoc) throw new AppError("Staff member not found.", 404);
+
+  // Update fields on the document
+  Object.assign(staffDoc, body);
+  await staffDoc.save(); // Triggers pre-save password hash if password was modified
+
+  const staff = staffDoc.toObject();
+  delete staff.password;
   return staff;
 };
 

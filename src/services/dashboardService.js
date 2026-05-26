@@ -54,24 +54,38 @@ const getDashboardStats = async () => {
   const pendingDues = pendingDuesResult[0]?.total || 0;
   const monthlyExpenses = monthlyExpensesResult[0]?.total || 0;
 
-  // Sparkline — last 7 days revenue
-  const revenueSparkline = [];
-  const patientSparkline = [];
-  const testSparkline = [];
-  for (let i = 6; i >= 0; i--) {
-    const dayStart = new Date();
-    dayStart.setDate(dayStart.getDate() - i);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+  // Sparkline — query last 7 days invoices in a single query
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const dayInvoices = await Invoice.find({
-      createdAt: { $gte: dayStart, $lt: dayEnd },
-    });
-    revenueSparkline.push(dayInvoices.reduce((s, inv) => s + inv.totalAmount, 0));
-    patientSparkline.push(dayInvoices.length);
-    testSparkline.push(dayInvoices.reduce((s, inv) => s + (inv.tests?.length || 0), 0));
+  const lastSevenDaysInvoices = await Invoice.find({
+    createdAt: { $gte: sevenDaysAgo },
+  });
+
+  const revenueSparkline = Array(7).fill(0);
+  const patientSparkline = Array(7).fill(0);
+  const testSparkline = Array(7).fill(0);
+
+  // Generate date string keys for the last 7 days (YYYY-MM-DD)
+  const dateKeys = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    dateKeys.push(key);
   }
+
+  lastSevenDaysInvoices.forEach((inv) => {
+    const d = new Date(inv.createdAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const index = dateKeys.indexOf(key);
+    if (index !== -1) {
+      revenueSparkline[index] += inv.totalAmount;
+      patientSparkline[index] += 1;
+      testSparkline[index] += inv.tests?.length || 0;
+    }
+  });
 
   return {
     totalPatients,
@@ -94,8 +108,9 @@ const getDashboardStats = async () => {
 };
 
 const getDailySales = async ({ days = 30 }) => {
+  const parsedDays = parseInt(days, 10) || 30;
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  startDate.setDate(startDate.getDate() - parsedDays);
   startDate.setHours(0, 0, 0, 0);
 
   const result = await Invoice.aggregate([
@@ -158,7 +173,8 @@ const getAnalytics = async () => {
 };
 
 const getRecentActivity = async ({ limit = 15 }) => {
-  return ActivityLog.find({}).sort({ createdAt: -1 }).limit(limit);
+  const parsedLimit = parseInt(limit, 10) || 15;
+  return ActivityLog.find({}).sort({ createdAt: -1 }).limit(parsedLimit);
 };
 
 module.exports = { getDashboardStats, getDailySales, getAnalytics, getRecentActivity };

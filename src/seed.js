@@ -6,7 +6,6 @@
  */
 require("dotenv").config();
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
 const connectDB = require("./config/db");
 
 const Settings = require("./models/Settings");
@@ -14,6 +13,9 @@ const User = require("./models/User");
 const Patient = require("./models/Patient");
 const LabTest = require("./models/LabTest");
 const Seat = require("./models/Seat");
+const Invoice = require("./models/Invoice");
+const Expense = require("./models/Expense");
+const ActivityLog = require("./models/ActivityLog");
 
 const seedDB = async () => {
   await connectDB();
@@ -24,6 +26,9 @@ const seedDB = async () => {
   await Patient.deleteMany({});
   await LabTest.deleteMany({});
   await Seat.deleteMany({});
+  await Invoice.deleteMany({});
+  await Expense.deleteMany({});
+  await ActivityLog.deleteMany({});
 
   console.log("🗑️  Cleared all collections.");
 

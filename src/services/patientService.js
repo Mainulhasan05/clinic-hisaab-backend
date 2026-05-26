@@ -2,6 +2,7 @@ const Patient = require("../models/Patient");
 const Seat = require("../models/Seat");
 const AppError = require("../utils/AppError");
 const generatePatientId = require("../utils/generatePatientId");
+const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit = 20 }) => {
@@ -14,10 +15,11 @@ const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit
 
   // Apply search (searches name, phone, and patientId)
   if (search) {
+    const escapedSearch = escapeRegex(search);
     filter.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { phone: { $regex: search, $options: "i" } },
-      { patientId: { $regex: search, $options: "i" } },
+      { name: { $regex: escapedSearch, $options: "i" } },
+      { phone: { $regex: escapedSearch, $options: "i" } },
+      { patientId: { $regex: escapedSearch, $options: "i" } },
     ];
   }
 

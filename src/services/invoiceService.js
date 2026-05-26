@@ -1,6 +1,7 @@
 const Invoice = require("../models/Invoice");
 const AppError = require("../utils/AppError");
 const generateInvoiceId = require("../utils/generateInvoiceId");
+const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 /**
@@ -16,10 +17,11 @@ const getAllInvoices = async ({ search = "", filterStatus = "all", page = 1, lim
   const filter = {};
   if (filterStatus !== "all") filter.status = filterStatus;
   if (search) {
+    const escapedSearch = escapeRegex(search);
     filter.$or = [
-      { patientName: { $regex: search, $options: "i" } },
-      { invoiceId: { $regex: search, $options: "i" } },
-      { patientPhone: { $regex: search, $options: "i" } },
+      { patientName: { $regex: escapedSearch, $options: "i" } },
+      { invoiceId: { $regex: escapedSearch, $options: "i" } },
+      { patientPhone: { $regex: escapedSearch, $options: "i" } },
     ];
   }
 
@@ -66,12 +68,17 @@ const updateInvoice = async (id, body) => {
   const invoice = await Invoice.findById(id);
   if (!invoice) throw new AppError("Invoice not found.", 404);
 
-  // Update allowed fields
-  Object.assign(invoice, body);
+  // Update only allowed fields to protect audit fields
+  const allowedFields = ["paidAmount", "dueAmount", "paymentMethod", "discountAmount", "totalAmount"];
+  allowedFields.forEach((field) => {
+    if (body[field] !== undefined) {
+      invoice[field] = body[field];
+    }
+  });
 
   // Recalculate status
-  const totalAmount = body.totalAmount || invoice.totalAmount;
-  const paidAmount = body.paidAmount !== undefined ? body.paidAmount : invoice.paidAmount;
+  const totalAmount = invoice.totalAmount;
+  const paidAmount = invoice.paidAmount;
   invoice.status = calculateStatus(paidAmount, totalAmount);
   invoice.dueAmount = Math.max(0, totalAmount - paidAmount);
 
