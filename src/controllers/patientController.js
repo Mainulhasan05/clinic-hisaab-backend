@@ -38,7 +38,7 @@ const deletePatient = async (req, res, next) => {
 
 const dischargePatient = async (req, res, next) => {
   try {
-    const patient = await patientService.dischargePatient(req.params.id, req.user);
+    const patient = await patientService.dischargePatient(req.params.id, req.user, req.body);
     sendResponse(res, 200, "Patient discharged.", patient);
   } catch (error) { next(error); }
 };

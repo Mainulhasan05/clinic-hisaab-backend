@@ -4,6 +4,7 @@ const generateInvoiceId = require("../utils/generateInvoiceId");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 const { sendSingleSms } = require("./smsService");
+const { getSettings } = require("./settingsService");
 
 
 /**
@@ -65,9 +66,18 @@ const createInvoice = async (body, user) => {
 
   // Fire-and-forget SMS notification
   if (body.patientPhone && body.sendSms) {
+    let clinicName = "Nobab Nursing Home";
+    try {
+      const settings = await getSettings();
+      if (settings && settings.name) {
+        clinicName = settings.name;
+      }
+    } catch (err) {
+      console.error("Failed to get settings for SMS:", err.message);
+    }
     sendSingleSms(
       body.patientPhone,
-      `Dear ${body.patientName}, your bill of ৳${body.totalAmount} has been generated at Nobab Nursing Home. Invoice: ${invoiceId}. Paid: ৳${body.paidAmount || 0}. Due: ৳${body.totalAmount - (body.paidAmount || 0)}. Thank you.`,
+      `Dear ${body.patientName}, your bill of ৳${body.totalAmount} has been generated at ${clinicName}. Invoice: ${invoiceId}. Paid: ৳${body.paidAmount || 0}. Due: ৳${body.totalAmount - (body.paidAmount || 0)}. Thank you.`,
       {
         type: "billing",
         refId: invoice._id,

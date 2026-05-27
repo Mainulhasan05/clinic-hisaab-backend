@@ -5,6 +5,7 @@ const generatePatientId = require("../utils/generatePatientId");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 const { sendSingleSms } = require("./smsService");
+const { getSettings } = require("./settingsService");
 
 
 const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit = 20 }) => {
@@ -115,10 +116,19 @@ const createPatient = async (body, user) => {
       });
 
       // Trigger admission SMS for inpatient
-      if (existingPatient.phone) {
+      if (body.sendSms && existingPatient.phone) {
+        let clinicName = "Nobab Nursing Home";
+        try {
+          const settings = await getSettings();
+          if (settings && settings.name) {
+            clinicName = settings.name;
+          }
+        } catch (err) {
+          console.error("Failed to get settings for SMS:", err.message);
+        }
         sendSingleSms(
           existingPatient.phone,
-          `Dear ${existingPatient.name}, you have been admitted. Patient ID: ${existingPatient.patientId}. Room: ${existingPatient.roomName || "N/A"}, Bed: ${existingPatient.bedName || "N/A"}. We wish you a speedy recovery.`,
+          `Dear ${existingPatient.name}, you have been admitted at ${clinicName}. Patient ID: ${existingPatient.patientId}. Room: ${existingPatient.roomName || "N/A"}, Bed: ${existingPatient.bedName || "N/A"}. We wish you a speedy recovery.`,
           {
             type: "admission",
             refId: existingPatient._id,
@@ -215,10 +225,19 @@ const createPatient = async (body, user) => {
       });
 
       // Trigger admission SMS for inpatient
-      if (body.phone && body.type === "inpatient") {
+      if (body.sendSms && body.phone && body.type === "inpatient") {
+        let clinicName = "Nobab Nursing Home";
+        try {
+          const settings = await getSettings();
+          if (settings && settings.name) {
+            clinicName = settings.name;
+          }
+        } catch (err) {
+          console.error("Failed to get settings for SMS:", err.message);
+        }
         sendSingleSms(
           body.phone,
-          `Dear ${patient.name}, you have been admitted. Patient ID: ${patientId}. Room: ${patient.roomName || "N/A"}, Bed: ${patient.bedName || "N/A"}. We wish you a speedy recovery.`,
+          `Dear ${patient.name}, you have been admitted at ${clinicName}. Patient ID: ${patientId}. Room: ${patient.roomName || "N/A"}, Bed: ${patient.bedName || "N/A"}. We wish you a speedy recovery.`,
           {
             type: "admission",
             refId: patient._id,
@@ -275,7 +294,8 @@ const deletePatient = async (id, user) => {
   });
 };
 
-const dischargePatient = async (id, user) => {
+const dischargePatient = async (id, user, body = {}) => {
+  const { sendSms = false } = body;
   const patient = await Patient.findById(id);
   if (!patient) throw new AppError("Patient not found.", 404);
   if (patient.status !== "admitted") throw new AppError("Patient is not currently admitted.", 400);
@@ -304,10 +324,19 @@ const dischargePatient = async (id, user) => {
   });
 
   // Trigger discharge SMS
-  if (patient.phone) {
+  if (sendSms && patient.phone) {
+    let clinicName = "Nobab Nursing Home";
+    try {
+      const settings = await getSettings();
+      if (settings && settings.name) {
+        clinicName = settings.name;
+      }
+    } catch (err) {
+      console.error("Failed to get settings for SMS:", err.message);
+    }
     sendSingleSms(
       patient.phone,
-      `Dear ${patient.name}, you have been discharged. Patient ID: ${patient.patientId}. We wish you good health. Thank you for choosing us.`,
+      `Dear ${patient.name}, you have been discharged from ${clinicName}. Patient ID: ${patient.patientId}. We wish you good health. Thank you for choosing us.`,
       {
         type: "discharge",
         refId: patient._id,
