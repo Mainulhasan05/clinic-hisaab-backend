@@ -9,8 +9,9 @@ const getAllStaff = async ({ search = "" }) => {
     const escapedSearch = escapeRegex(search);
     filter.$or = [
       { name: { $regex: escapedSearch, $options: "i" } },
-      { email: { $regex: escapedSearch, $options: "i" } },
+      { phone: { $regex: escapedSearch, $options: "i" } },
     ];
+
   }
   return User.find(filter).select("-password").sort({ createdAt: -1 });
 };

@@ -32,12 +32,20 @@ const seedDB = async () => {
 
   console.log("🗑️  Cleared all collections.");
 
+  // Drop old unique email index if it exists
+  try {
+    await mongoose.connection.db.collection("users").dropIndex("email_1");
+    console.log("🗑️  Dropped old unique email index.");
+  } catch (err) {
+    // Index doesn't exist, ignore
+  }
+
+
   // 1. Create Settings
   await Settings.create({
     name: "Green Care Nursing Home",
     address: "12 Hospital Road, Dhaka 1205",
     phone: "02-8765432, 01700-000000",
-    email: "billing@greencare.com",
     registrationNo: "Reg. No: DGH-2026-1205",
     logoText: "GC",
     isSetupComplete: true,
@@ -46,11 +54,12 @@ const seedDB = async () => {
 
   // 2. Create Users (passwords will be hashed by pre-save hook)
   await User.create([
-    { name: "Fatima Rahman", email: "fatima@greencare.com", password: "password123", role: "owner", phone: "01711111111" },
-    { name: "Sadia Akter", email: "sadia@greencare.com", password: "password123", role: "manager", phone: "01722222222" },
-    { name: "Rafiq Islam", email: "rafiq@greencare.com", password: "password123", role: "operator", phone: "01733333333" },
+    { name: "Fatima Rahman", password: "password123", role: "owner", phone: "01711111111" },
+    { name: "Sadia Akter", password: "password123", role: "manager", phone: "01722222222" },
+    { name: "Rafiq Islam", password: "password123", role: "operator", phone: "01733333333" },
   ]);
   console.log("✅ Users created (3 staff members).");
+
 
   // 3. Create Lab Tests
   await LabTest.create([
@@ -83,7 +92,8 @@ const seedDB = async () => {
   console.log("✅ Seats created (10 beds in 5 rooms).");
 
   console.log("\n🎉 Seed complete! You can now run: npm run dev");
-  console.log("   Login with: fatima@greencare.com / password123");
+  console.log("   Login with: 01711111111 / password123");
+
 
   process.exit(0);
 };

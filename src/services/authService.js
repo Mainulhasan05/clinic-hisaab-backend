@@ -18,7 +18,7 @@ const generateToken = (user) => {
  * First-time setup — creates the owner account and initializes settings.
  * Can only be called ONCE (when no users exist in the database).
  */
-const setup = async ({ nursingHomeName, ownerName, email, password }) => {
+const setup = async ({ nursingHomeName, ownerName, phone, password }) => {
   // Check if any users already exist
   const existingUserCount = await User.countDocuments({});
   if (existingUserCount > 0) {
@@ -34,7 +34,7 @@ const setup = async ({ nursingHomeName, ownerName, email, password }) => {
   // Create the owner user
   const owner = await User.create({
     name: ownerName,
-    email,
+    phone,
     password, // Will be hashed by the pre-save hook
     role: "owner",
     status: "active",
@@ -47,20 +47,21 @@ const setup = async ({ nursingHomeName, ownerName, email, password }) => {
     user: {
       _id: owner._id,
       name: owner.name,
-      email: owner.email,
+      phone: owner.phone,
       role: owner.role,
     },
   };
 };
 
+
 /**
  * Login with email and password.
  */
-const login = async ({ email, password }) => {
-  // Find user by email (must explicitly select password since it's excluded by default)
-  const user = await User.findOne({ email }).select("+password");
+const login = async ({ phone, password }) => {
+  // Find user by phone (must explicitly select password since it's excluded by default)
+  const user = await User.findOne({ phone }).select("+password");
   if (!user) {
-    throw new AppError("Invalid email or password.", 401);
+    throw new AppError("Invalid phone or password.", 401);
   }
 
   if (user.status !== "active") {
@@ -70,7 +71,7 @@ const login = async ({ email, password }) => {
   // Compare password
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
-    throw new AppError("Invalid email or password.", 401);
+    throw new AppError("Invalid phone or password.", 401);
   }
 
   const token = generateToken(user);
@@ -80,11 +81,12 @@ const login = async ({ email, password }) => {
     user: {
       _id: user._id,
       name: user.name,
-      email: user.email,
+      phone: user.phone,
       role: user.role,
     },
   };
 };
+
 
 /**
  * Get current user info from the token.

@@ -8,11 +8,11 @@ const getSettings = async () => {
       name: "NurseBill",
       address: "",
       phone: "",
-      email: "",
       registrationNo: "",
       logoText: "",
       isSetupComplete: false,
     };
+
   }
   return settings;
 };
