@@ -5,11 +5,11 @@ const getSettings = async () => {
   // If no settings exist yet (fresh install before setup), return defaults
   if (!settings) {
     return {
-      name: "NurseBill",
+      name: "Nobab Nursing Home",
       address: "",
       phone: "",
       registrationNo: "",
-      logoText: "",
+      logoText: "NNH",
       isSetupComplete: false,
     };
 

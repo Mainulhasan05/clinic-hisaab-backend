@@ -43,11 +43,11 @@ const seedDB = async () => {
 
   // 1. Create Settings
   await Settings.create({
-    name: "Green Care Nursing Home",
+    name: "Nobab Nursing Home",
     address: "12 Hospital Road, Dhaka 1205",
     phone: "02-8765432, 01700-000000",
-    registrationNo: "Reg. No: DGH-2026-1205",
-    logoText: "GC",
+    registrationNo: "Reg. No: NNH-2026-1205",
+    logoText: "NNH",
     isSetupComplete: true,
   });
   console.log("✅ Settings created.");
