@@ -5,13 +5,15 @@ const createPatientSchema = Joi.object({
   name: Joi.string().trim().min(2).max(200).required(),
   age: Joi.number().integer().min(0).max(150).required(),
   gender: Joi.string().valid(...GENDERS).required(),
-  phone: Joi.string().trim().min(5).max(20).required(),
+  phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).required()
+    .messages({ "string.pattern.base": "Patient phone must be a valid Bangladeshi 11-digit mobile number" }),
   address: Joi.string().trim().max(500).allow("").default(""),
   type: Joi.string().valid(...PATIENT_TYPES).default("lab"),
   admissionDate: Joi.date().allow(null).default(null),
   seatId: Joi.string().allow(null).default(null),
   guardianName: Joi.string().trim().allow(null, "").default(null),
-  guardianPhone: Joi.string().trim().allow(null, "").default(null),
+  guardianPhone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).allow(null, "").default(null)
+    .messages({ "string.pattern.base": "Guardian phone must be a valid Bangladeshi 11-digit mobile number" }),
   emergencyContact: Joi.string().trim().allow(null, "").default(null),
   referenceDoctor: Joi.string().trim().allow(null, "").default(null),
 });
@@ -20,13 +22,15 @@ const updatePatientSchema = Joi.object({
   name: Joi.string().trim().min(2).max(200),
   age: Joi.number().integer().min(0).max(150),
   gender: Joi.string().valid(...GENDERS),
-  phone: Joi.string().trim().min(5).max(20),
+  phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/)
+    .messages({ "string.pattern.base": "Patient phone must be a valid Bangladeshi 11-digit mobile number" }),
   address: Joi.string().trim().max(500).allow(""),
   type: Joi.string().valid(...PATIENT_TYPES),
   admissionDate: Joi.date().allow(null),
   seatId: Joi.string().allow(null),
   guardianName: Joi.string().trim().allow(null, ""),
-  guardianPhone: Joi.string().trim().allow(null, ""),
+  guardianPhone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).allow(null, "")
+    .messages({ "string.pattern.base": "Guardian phone must be a valid Bangladeshi 11-digit mobile number" }),
   emergencyContact: Joi.string().trim().allow(null, ""),
   referenceDoctor: Joi.string().trim().allow(null, ""),
   status: Joi.string().valid("active", "admitted", "discharged"),
