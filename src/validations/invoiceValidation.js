@@ -38,6 +38,7 @@ const createInvoiceSchema = Joi.object({
   cashReceivedBy: Joi.string().default("Cash Counter"),
   authorizedBy: Joi.string().default("Duty Manager"),
   reportDeliveryAfter: Joi.string().allow(null, "").default(null),
+  sendSms: Joi.boolean().default(false),
 });
 
 const updateInvoiceSchema = Joi.object({

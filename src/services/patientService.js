@@ -46,6 +46,98 @@ const getPatientById = async (id) => {
 };
 
 const createPatient = async (body, user) => {
+  // Check for existing patient with same name, phone, and gender (case-insensitive name comparison)
+  const existingPatient = await Patient.findOne({
+    name: { $regex: new RegExp(`^${escapeRegex(body.name.trim())}$`, "i") },
+    phone: body.phone.trim(),
+    gender: body.gender,
+  });
+
+  if (existingPatient) {
+    // If inpatient with a seat, set status to "admitted" and occupy the seat
+    if (body.type === "inpatient" && body.seatId) {
+      const seat = await Seat.findById(body.seatId);
+      if (!seat) throw new AppError("Selected seat not found.", 404);
+      if (seat.status === "occupied") throw new AppError("Selected seat is already occupied.", 400);
+
+      // If the patient is already admitted to another seat, check/prevent
+      if (existingPatient.status === "admitted" && existingPatient.seatId && existingPatient.seatId.toString() !== body.seatId) {
+        throw new AppError("Patient is already admitted to another seat. Please discharge them first.", 400);
+      }
+
+      existingPatient.type = "inpatient";
+      existingPatient.status = "admitted";
+      existingPatient.seatId = body.seatId;
+      existingPatient.roomName = seat.roomName;
+      existingPatient.bedName = seat.bedName;
+      existingPatient.admissionDate = body.admissionDate || new Date();
+      if (body.guardianName) existingPatient.guardianName = body.guardianName;
+      if (body.guardianPhone) existingPatient.guardianPhone = body.guardianPhone;
+      if (body.emergencyContact) existingPatient.emergencyContact = body.emergencyContact;
+      if (body.referenceDoctor) existingPatient.referenceDoctor = body.referenceDoctor;
+
+      await existingPatient.save();
+
+      // Occupy the seat
+      await Seat.findByIdAndUpdate(body.seatId, {
+        status: "occupied",
+        patientId: existingPatient._id,
+        patientName: existingPatient.name,
+      });
+
+      // Log activity
+      await logActivity({
+        type: "admission",
+        description: `Existing patient admitted: ${existingPatient.name} (${existingPatient.patientId})`,
+        operator: user.name,
+        operatorId: user._id,
+        refId: existingPatient._id,
+        refModel: "Patient",
+      });
+
+      // Trigger admission SMS for inpatient
+      if (existingPatient.phone) {
+        sendSingleSms(
+          existingPatient.phone,
+          `Dear ${existingPatient.name}, you have been admitted. Patient ID: ${existingPatient.patientId}. Room: ${existingPatient.roomName || "N/A"}, Bed: ${existingPatient.bedName || "N/A"}. We wish you a speedy recovery.`,
+          {
+            type: "admission",
+            refId: existingPatient._id,
+            refModel: "Patient",
+            sentBy: user._id,
+            sentByName: user.name
+          }
+        ).catch((err) => console.error("Admission SMS trigger failed:", err.message));
+      }
+    } else {
+      // If type or other minor fields need updating (e.g. age can change over time, or address), update if provided
+      let updated = false;
+      if (body.age && body.age !== existingPatient.age) {
+        existingPatient.age = body.age;
+        updated = true;
+      }
+      if (body.address && body.address !== existingPatient.address) {
+        existingPatient.address = body.address;
+        updated = true;
+      }
+      if (updated) {
+        await existingPatient.save();
+      }
+
+      // Log activity
+      await logActivity({
+        type: "patient",
+        description: `Existing patient returned for service: ${existingPatient.name} (${existingPatient.patientId})`,
+        operator: user.name,
+        operatorId: user._id,
+        refId: existingPatient._id,
+        refModel: "Patient",
+      });
+    }
+
+    return existingPatient;
+  }
+
   // Auto-generate the patient ID
   const patientId = await generatePatientId();
 
@@ -103,7 +195,6 @@ const createPatient = async (body, user) => {
   }
 
   return patient;
-
 };
 
 const updatePatient = async (id, body) => {

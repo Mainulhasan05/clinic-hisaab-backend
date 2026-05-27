@@ -64,10 +64,10 @@ const createInvoice = async (body, user) => {
   });
 
   // Fire-and-forget SMS notification
-  if (body.patientPhone) {
+  if (body.patientPhone && body.sendSms) {
     sendSingleSms(
       body.patientPhone,
-      `Dear ${body.patientName}, your bill of ৳${body.totalAmount} has been generated. Invoice: ${invoiceId}. Paid: ৳${body.paidAmount || 0}. Due: ৳${body.totalAmount - (body.paidAmount || 0)}. Thank you.`,
+      `Dear ${body.patientName}, your bill of ৳${body.totalAmount} has been generated at Nobab Nursing Home. Invoice: ${invoiceId}. Paid: ৳${body.paidAmount || 0}. Due: ৳${body.totalAmount - (body.paidAmount || 0)}. Thank you.`,
       {
         type: "billing",
         refId: invoice._id,
