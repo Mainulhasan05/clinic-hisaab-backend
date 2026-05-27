@@ -11,7 +11,7 @@ router.use(authenticate);
 
 router.get("/", ctrl.getAllInvoices);
 router.get("/:id", ctrl.getInvoiceById);
-router.post("/", validate(createInvoiceSchema), ctrl.createInvoice);
+router.post("/", authorize("owner", "manager", "operator"), validate(createInvoiceSchema), ctrl.createInvoice);
 router.put("/:id", authorize("owner", "manager"), validate(updateInvoiceSchema), ctrl.updateInvoice);
 router.delete("/:id", authorize("owner", "manager"), ctrl.deleteInvoice);
 
