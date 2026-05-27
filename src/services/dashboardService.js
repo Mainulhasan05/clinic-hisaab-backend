@@ -177,4 +177,129 @@ const getRecentActivity = async ({ limit = 15 }) => {
   return ActivityLog.find({}).sort({ createdAt: -1 }).limit(parsedLimit);
 };
 
-module.exports = { getDashboardStats, getDailySales, getAnalytics, getRecentActivity };
+const getMonthlyFinancials = async (months = 12) => {
+  const parsedMonths = parseInt(months, 10) || 12;
+
+  // Calculate start date
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - (parsedMonths - 1));
+  startDate.setDate(1);
+  startDate.setHours(0, 0, 0, 0);
+
+  // Parallel database aggregation
+  const [incomeResults, expenseResults] = await Promise.all([
+    Invoice.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          totalIncome: { $sum: "$totalAmount" },
+        },
+      },
+    ]),
+    Expense.aggregate([
+      { $match: { date: { $gte: startDate } } },
+      {
+        $group: {
+          _id: {
+            month: { $dateToString: { format: "%Y-%m", date: "$date" } },
+            category: "$category",
+          },
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+    ]),
+  ]);
+
+  // Generate continuous list of months
+  const monthKeys = [];
+  const now = new Date();
+  for (let i = parsedMonths - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    monthKeys.push(`${year}-${month}`);
+  }
+
+  // Maps for quick lookup
+  const incomeMap = {};
+  incomeResults.forEach((item) => {
+    incomeMap[item._id] = item.totalIncome;
+  });
+
+  const expenseMap = {};
+  expenseResults.forEach((item) => {
+    const month = item._id.month;
+    const category = item._id.category;
+    const amount = item.totalAmount;
+
+    if (!expenseMap[month]) {
+      expenseMap[month] = { total: 0, breakdown: {} };
+    }
+    expenseMap[month].total += amount;
+    expenseMap[month].breakdown[category] = amount;
+  });
+
+  // Assemble chronological array
+  const monthlyFinancials = monthKeys.map((month) => {
+    const income = incomeMap[month] || 0;
+    const expData = expenseMap[month] || { total: 0, breakdown: {} };
+    const expenses = expData.total;
+    const profit = income - expenses;
+    const expenseBreakdown = expData.breakdown;
+
+    return {
+      month,
+      income,
+      expenses,
+      profit,
+      expenseBreakdown,
+    };
+  });
+
+  // Calculate totals and metrics
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  const categoryTotals = {};
+
+  monthlyFinancials.forEach((m) => {
+    totalIncome += m.income;
+    totalExpenses += m.expenses;
+    Object.entries(m.expenseBreakdown).forEach(([cat, amt]) => {
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+    });
+  });
+
+  const totalProfit = totalIncome - totalExpenses;
+  const averageMonthlyProfit =
+    monthlyFinancials.length > 0 ? Math.round(totalProfit / monthlyFinancials.length) : 0;
+
+  const salaryExpense = categoryTotals["staff_salaries"] || 0;
+  const salaryPercentageOfExpenses =
+    totalExpenses > 0 ? Math.round((salaryExpense / totalExpenses) * 100) : 0;
+
+  const categoryRankings = Object.entries(categoryTotals)
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    monthlyFinancials,
+    summary: {
+      totalIncome,
+      totalExpenses,
+      totalProfit,
+      averageMonthlyProfit,
+      salaryExpense,
+      salaryPercentageOfExpenses,
+      categoryRankings,
+    },
+  };
+};
+
+module.exports = {
+  getDashboardStats,
+  getDailySales,
+  getAnalytics,
+  getRecentActivity,
+  getMonthlyFinancials,
+};

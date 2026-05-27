@@ -44,6 +44,11 @@ const userSchema = new mongoose.Schema(
       enum: USER_STATUSES,
       default: "active",
     },
+    salary: {
+      type: Number,
+      default: 0,
+      min: [0, "Salary cannot be negative"],
+    },
   },
   {
     timestamps: true,

@@ -29,4 +29,11 @@ const getRecentActivity = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getDashboardStats, getDailySales, getAnalytics, getRecentActivity };
+const getMonthlyFinancials = async (req, res, next) => {
+  try {
+    const result = await dashboardService.getMonthlyFinancials(req.query.months);
+    sendResponse(res, 200, "Monthly financials fetched.", result);
+  } catch (error) { next(error); }
+};
+
+module.exports = { getDashboardStats, getDailySales, getAnalytics, getRecentActivity, getMonthlyFinancials };

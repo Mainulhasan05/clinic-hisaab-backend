@@ -40,6 +40,19 @@ const expenseSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    staffId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    staffName: {
+      type: String,
+      default: null,
+    },
+    salaryMonth: {
+      type: String,
+      default: null, // YYYY-MM
+    },
   },
   {
     timestamps: true,
@@ -48,5 +61,6 @@ const expenseSchema = new mongoose.Schema(
 
 expenseSchema.index({ date: -1 });
 expenseSchema.index({ category: 1, date: -1 });
+expenseSchema.index({ staffId: 1, salaryMonth: 1 });
 
 module.exports = mongoose.model("Expense", expenseSchema);

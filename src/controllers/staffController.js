@@ -29,4 +29,18 @@ const deleteStaff = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllStaff, createStaff, updateStaff, deleteStaff };
+const paySalary = async (req, res, next) => {
+  try {
+    const expense = await staffService.paySalary(req.params.id, req.body, req.user);
+    sendResponse(res, 201, "Salary paid successfully.", expense);
+  } catch (error) { next(error); }
+};
+
+const getSalaryHistory = async (req, res, next) => {
+  try {
+    const history = await staffService.getSalaryHistory(req.params.id);
+    sendResponse(res, 200, "Salary history fetched.", history);
+  } catch (error) { next(error); }
+};
+
+module.exports = { getAllStaff, createStaff, updateStaff, deleteStaff, paySalary, getSalaryHistory };

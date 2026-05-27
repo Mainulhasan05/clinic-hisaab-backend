@@ -7,6 +7,7 @@ const createStaffSchema = Joi.object({
   phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).required()
     .messages({ "string.pattern.base": "Staff phone must be a valid Bangladeshi 11-digit mobile number" }),
   role: Joi.string().valid(...ROLES).default("operator"),
+  salary: Joi.number().min(0).default(0),
 });
 
 const updateStaffSchema = Joi.object({
@@ -16,7 +17,13 @@ const updateStaffSchema = Joi.object({
   role: Joi.string().valid(...ROLES),
   status: Joi.string().valid("active", "inactive"),
   password: Joi.string().min(6).max(128),
+  salary: Joi.number().min(0),
 }).min(1);
 
+const paySalarySchema = Joi.object({
+  month: Joi.string().pattern(/^\d{4}-\d{2}$/).required()
+    .messages({ "string.pattern.base": "Month must be in YYYY-MM format (e.g. 2026-05)" }),
+  amount: Joi.number().min(1).required(),
+});
 
-module.exports = { createStaffSchema, updateStaffSchema };
+module.exports = { createStaffSchema, updateStaffSchema, paySalarySchema };
