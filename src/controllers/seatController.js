@@ -22,4 +22,11 @@ const updateSeat = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllSeats, createSeat, updateSeat };
+const deleteSeat = async (req, res, next) => {
+  try {
+    await seatService.deleteSeat(req.params.id, req.user);
+    sendResponse(res, 200, "Seat deleted.");
+  } catch (error) { next(error); }
+};
+
+module.exports = { getAllSeats, createSeat, updateSeat, deleteSeat };

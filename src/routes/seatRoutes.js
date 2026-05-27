@@ -12,5 +12,6 @@ router.use(authenticate);
 router.get("/", ctrl.getAllSeats);
 router.post("/", authorize("owner"), validate(createSeatSchema), ctrl.createSeat);
 router.put("/:id", authorize("owner"), validate(updateSeatSchema), ctrl.updateSeat);
+router.delete("/:id", authorize("owner"), ctrl.deleteSeat);
 
 module.exports = router;

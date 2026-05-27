@@ -27,4 +27,23 @@ const updateSeat = async (id, body, user) => {
   return seat;
 };
 
-module.exports = { getAllSeats, createSeat, updateSeat };
+const deleteSeat = async (id, user) => {
+  const seat = await Seat.findById(id);
+  if (!seat) throw new AppError("Seat not found.", 404);
+  if (seat.status === "occupied" || seat.patientId) {
+    throw new AppError("Occupied seats cannot be deleted. Discharge or move the patient first.", 400);
+  }
+
+  await Seat.findByIdAndDelete(id);
+
+  await logActivity({
+    type: "seat",
+    description: `Seat deleted: ${seat.roomName} / ${seat.bedName}`,
+    operator: user.name,
+    operatorId: user._id,
+    refId: seat._id,
+    refModel: "Seat",
+  });
+};
+
+module.exports = { getAllSeats, createSeat, updateSeat, deleteSeat };
