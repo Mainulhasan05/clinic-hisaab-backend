@@ -51,5 +51,6 @@ const seatSchema = new mongoose.Schema(
 
 // Ensure no duplicate room+bed combinations
 seatSchema.index({ roomName: 1, bedName: 1 }, { unique: true });
+seatSchema.index({ status: 1 });
 
 module.exports = mongoose.model("Seat", seatSchema);

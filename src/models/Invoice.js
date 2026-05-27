@@ -145,4 +145,10 @@ const invoiceSchema = new mongoose.Schema(
   }
 );
 
+invoiceSchema.index({ createdAt: -1 });
+invoiceSchema.index({ status: 1, createdAt: -1 });
+invoiceSchema.index({ receiptType: 1, createdAt: -1 });
+invoiceSchema.index({ dueAmount: 1 });
+invoiceSchema.index({ patientId: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Invoice", invoiceSchema);

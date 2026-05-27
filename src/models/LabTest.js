@@ -37,4 +37,7 @@ const labTestSchema = new mongoose.Schema(
   }
 );
 
+labTestSchema.index({ isActive: 1, category: 1 });
+labTestSchema.index({ name: 1 });
+
 module.exports = mongoose.model("LabTest", labTestSchema);

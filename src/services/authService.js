@@ -138,7 +138,7 @@ const forgotPassword = async ({ phone }) => {
 
   // 6. Send OTP via SMS
   const message = `Your Nobab Nursing Home password reset OTP is ${code}. Valid for 5 minutes. Do not share.`;
-  await smsService.sendSingleSms(phone, message, { type: "system" });
+  await smsService.sendSingleSms(phone, message, { type: "password_reset" });
 
   return { success: true };
 };
