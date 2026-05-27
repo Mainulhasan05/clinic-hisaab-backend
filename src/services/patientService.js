@@ -46,13 +46,28 @@ const getPatientById = async (id) => {
 };
 
 const createPatient = async (body, user) => {
-  // Check for existing patient with same name, phone, and gender (case-insensitive name comparison)
-  const existingPatient = await Patient.findOne({
-    name: { $regex: new RegExp(`^${escapeRegex(body.name.trim())}$`, "i") },
-    phone: body.phone.trim(),
-    gender: body.gender,
-  });
+  // ──────────────────────────────────────────────
+  // STEP 1: Try to find existing patient
+  // ──────────────────────────────────────────────
+  // Priority 1: Frontend explicitly told us which patient to reuse
+  // Priority 2: Fallback — match by name + phone + gender (same person returning)
+  let existingPatient = null;
 
+  if (body.existingPatientId) {
+    existingPatient = await Patient.findById(body.existingPatientId);
+  }
+
+  if (!existingPatient) {
+    existingPatient = await Patient.findOne({
+      name: { $regex: new RegExp(`^${escapeRegex(body.name.trim())}$`, "i") },
+      phone: body.phone.trim(),
+      gender: body.gender,
+    });
+  }
+
+  // ──────────────────────────────────────────────
+  // STEP 2: If existing patient found → reuse them
+  // ──────────────────────────────────────────────
   if (existingPatient) {
     // If inpatient with a seat, set status to "admitted" and occupy the seat
     if (body.type === "inpatient" && body.seatId) {
@@ -124,6 +139,10 @@ const createPatient = async (body, user) => {
         existingPatient.address = body.address;
         updated = true;
       }
+      if (body.referenceDoctor && body.referenceDoctor !== existingPatient.referenceDoctor) {
+        existingPatient.referenceDoctor = body.referenceDoctor;
+        updated = true;
+      }
       if (updated) {
         await existingPatient.save();
       }
@@ -142,67 +161,84 @@ const createPatient = async (body, user) => {
     return existingPatient;
   }
 
-  // Auto-generate the patient ID
-  const patientId = await generatePatientId();
+  // ──────────────────────────────────────────────
+  // STEP 3: No existing patient found → create new
+  // ──────────────────────────────────────────────
+  // Retry loop to handle race conditions on patientId generation (E11000 duplicate key)
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const patientId = await generatePatientId();
 
-  const patientData = {
-    ...body,
-    patientId,
-    createdBy: user._id,
-  };
+      const patientData = {
+        ...body,
+        patientId,
+        createdBy: user._id,
+      };
+      // Remove frontend-only field
+      delete patientData.existingPatientId;
 
-  // If inpatient with a seat, set status to "admitted" and occupy the seat
-  if (body.type === "inpatient" && body.seatId) {
-    const seat = await Seat.findById(body.seatId);
-    if (!seat) throw new AppError("Selected seat not found.", 404);
-    if (seat.status === "occupied") throw new AppError("Selected seat is already occupied.", 400);
+      // If inpatient with a seat, set status to "admitted" and occupy the seat
+      if (body.type === "inpatient" && body.seatId) {
+        const seat = await Seat.findById(body.seatId);
+        if (!seat) throw new AppError("Selected seat not found.", 404);
+        if (seat.status === "occupied") throw new AppError("Selected seat is already occupied.", 400);
 
-    patientData.status = "admitted";
-    patientData.roomName = seat.roomName;
-    patientData.bedName = seat.bedName;
-    if (body.advanceAmount > 0) {
-      patientData.advanceAmount = body.advanceAmount;
-      patientData.advancePaymentMethod = body.advancePaymentMethod || "Cash";
-    }
-  }
+        patientData.status = "admitted";
+        patientData.roomName = seat.roomName;
+        patientData.bedName = seat.bedName;
+        if (body.advanceAmount > 0) {
+          patientData.advanceAmount = body.advanceAmount;
+          patientData.advancePaymentMethod = body.advancePaymentMethod || "Cash";
+        }
+      }
 
-  const patient = await Patient.create(patientData);
+      const patient = await Patient.create(patientData);
 
-  // If inpatient, mark the seat as occupied
-  if (body.type === "inpatient" && body.seatId) {
-    await Seat.findByIdAndUpdate(body.seatId, {
-      status: "occupied",
-      patientId: patient._id,
-      patientName: patient.name,
-    });
-  }
+      // If inpatient, mark the seat as occupied
+      if (body.type === "inpatient" && body.seatId) {
+        await Seat.findByIdAndUpdate(body.seatId, {
+          status: "occupied",
+          patientId: patient._id,
+          patientName: patient.name,
+        });
+      }
 
-  // Log activity
-  await logActivity({
-    type: "patient",
-    description: `New ${body.type} patient registered: ${patient.name} (${patientId})`,
-    operator: user.name,
-    operatorId: user._id,
-    refId: patient._id,
-    refModel: "Patient",
-  });
-
-  // Trigger admission SMS for inpatient
-  if (body.phone && body.type === "inpatient") {
-    sendSingleSms(
-      body.phone,
-      `Dear ${patient.name}, you have been admitted. Patient ID: ${patientId}. Room: ${patient.roomName || "N/A"}, Bed: ${patient.bedName || "N/A"}. We wish you a speedy recovery.`,
-      {
-        type: "admission",
+      // Log activity
+      await logActivity({
+        type: "patient",
+        description: `New ${body.type} patient registered: ${patient.name} (${patientId})`,
+        operator: user.name,
+        operatorId: user._id,
         refId: patient._id,
         refModel: "Patient",
-        sentBy: user._id,
-        sentByName: user.name
-      }
-    ).catch((err) => console.error("Admission SMS trigger failed:", err.message));
-  }
+      });
 
-  return patient;
+      // Trigger admission SMS for inpatient
+      if (body.phone && body.type === "inpatient") {
+        sendSingleSms(
+          body.phone,
+          `Dear ${patient.name}, you have been admitted. Patient ID: ${patientId}. Room: ${patient.roomName || "N/A"}, Bed: ${patient.bedName || "N/A"}. We wish you a speedy recovery.`,
+          {
+            type: "admission",
+            refId: patient._id,
+            refModel: "Patient",
+            sentBy: user._id,
+            sentByName: user.name
+          }
+        ).catch((err) => console.error("Admission SMS trigger failed:", err.message));
+      }
+
+      return patient;
+    } catch (err) {
+      // If it's a duplicate key error on patientId, retry with a new ID
+      if (err.code === 11000 && err.keyPattern?.patientId && attempt < MAX_RETRIES) {
+        console.warn(`PatientId collision on attempt ${attempt}, retrying...`);
+        continue;
+      }
+      throw err;
+    }
+  }
 };
 
 const updatePatient = async (id, body) => {

@@ -18,6 +18,7 @@ const createPatientSchema = Joi.object({
   advanceAmount: Joi.number().min(0).default(0),
   advancePaymentMethod: Joi.string().allow(null, "").default("Cash"),
   referenceDoctor: Joi.string().trim().allow(null, "").default(null),
+  existingPatientId: Joi.string().allow(null, "").default(null),
 });
 
 const updatePatientSchema = Joi.object({
