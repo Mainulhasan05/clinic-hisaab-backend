@@ -28,4 +28,22 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { setup, login, getMe };
+const forgotPassword = async (req, res, next) => {
+  try {
+    const result = await authService.forgotPassword(req.body);
+    sendResponse(res, 200, "OTP sent successfully to your phone number.", result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const result = await authService.resetPassword(req.body);
+    sendResponse(res, 200, "Password has been reset successfully. You can now log in.", result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { setup, login, getMe, forgotPassword, resetPassword };

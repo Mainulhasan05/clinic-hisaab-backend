@@ -20,5 +20,33 @@ const loginSchema = Joi.object({
     .messages({ "any.required": "Password is required" }),
 });
 
+// Used to request password reset OTP
+const forgotPasswordSchema = Joi.object({
+  phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).required()
+    .messages({
+      "any.required": "Phone number is required",
+      "string.pattern.base": "Must be a valid Bangladeshi 11-digit mobile number",
+    }),
+});
 
-module.exports = { setupSchema, loginSchema };
+// Used to verify OTP and reset password
+const resetPasswordSchema = Joi.object({
+  phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).required()
+    .messages({
+      "any.required": "Phone number is required",
+      "string.pattern.base": "Must be a valid Bangladeshi 11-digit mobile number",
+    }),
+  otp: Joi.string().trim().length(6).pattern(/^\d+$/).required()
+    .messages({
+      "any.required": "OTP code is required",
+      "string.length": "OTP must be exactly 6 digits",
+      "string.pattern.base": "OTP must contain only digits",
+    }),
+  newPassword: Joi.string().min(6).max(128).required()
+    .messages({
+      "any.required": "New password is required",
+      "string.min": "Password must be at least 6 characters",
+    }),
+});
+
+module.exports = { setupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema };

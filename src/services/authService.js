@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Settings = require("../models/Settings");
+const Otp = require("../models/Otp");
+const OtpRequest = require("../models/OtpRequest");
+const smsService = require("./smsService");
 const AppError = require("../utils/AppError");
 
 /**
@@ -99,4 +102,82 @@ const getMe = async (userId) => {
   return user;
 };
 
-module.exports = { setup, login, getMe };
+/**
+ * Forgot password - request OTP code via SMS.
+ */
+const forgotPassword = async ({ phone }) => {
+  // 1. Verify user exists
+  const user = await User.findOne({ phone });
+  if (!user) {
+    throw new AppError("No account found with this phone number.", 404);
+  }
+
+  if (user.status !== "active") {
+    throw new AppError("Your account is deactivated. Contact the administrator.", 401);
+  }
+
+  // 2. Count requests in last 10 minutes (handled automatically by TTL schema)
+  const requestCount = await OtpRequest.countDocuments({ phone });
+  if (requestCount >= 3) {
+    throw new AppError("Too many OTP requests. Please wait 10 minutes.", 429);
+  }
+
+  // 3. Create OtpRequest entry (will TTL expire in 10m)
+  await OtpRequest.create({ phone });
+
+  // 4. Generate 6-digit OTP code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 5. Store OTP with 5 minutes expiration
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  await Otp.findOneAndUpdate(
+    { phone },
+    { code, expiresAt },
+    { upsert: true, new: true }
+  );
+
+  // 6. Send OTP via SMS
+  const message = `Your Nobab Nursing Home password reset OTP is ${code}. Valid for 5 minutes. Do not share.`;
+  await smsService.sendSingleSms(phone, message, { type: "system" });
+
+  return { success: true };
+};
+
+/**
+ * Reset password using the SMS OTP code.
+ */
+const resetPassword = async ({ phone, otp, newPassword }) => {
+  // 1. Check active OTP
+  const otpRecord = await Otp.findOne({ phone });
+  if (!otpRecord) {
+    throw new AppError("No OTP requested for this phone number.", 400);
+  }
+
+  // Check expiration
+  if (otpRecord.expiresAt < new Date()) {
+    await Otp.deleteOne({ phone });
+    throw new AppError("OTP has expired. Please request a new one.", 400);
+  }
+
+  // 2. Verify OTP matches
+  if (otpRecord.code !== otp) {
+    throw new AppError("Invalid OTP code.", 400);
+  }
+
+  // 3. Find User
+  const user = await User.findOne({ phone });
+  if (!user) {
+    throw new AppError("User not found.", 404);
+  }
+
+  // 4. Update Password (pre-save hook will hash it)
+  user.password = newPassword;
+  await user.save();
+
+  // 5. Clean up OTP record
+  await Otp.deleteOne({ phone });
+
+  return { success: true };
+};
+
+module.exports = { setup, login, getMe, forgotPassword, resetPassword };
