@@ -86,13 +86,28 @@ const updateInvoice = async (id, body) => {
   const invoice = await Invoice.findById(id);
   if (!invoice) throw new AppError("Invoice not found.", 404);
 
-  // Update only allowed fields to protect audit fields
-  const allowedFields = ["paidAmount", "dueAmount", "paymentMethod", "discountAmount", "totalAmount"];
-  allowedFields.forEach((field) => {
+  // Update simple payment fields
+  const simpleFields = ["paidAmount", "dueAmount", "paymentMethod", "discountAmount", "totalAmount", "subtotalAmount"];
+  simpleFields.forEach((field) => {
     if (body[field] !== undefined) {
       invoice[field] = body[field];
     }
   });
+
+  // Update tests if provided (replace entire array)
+  if (body.tests !== undefined) {
+    invoice.tests = body.tests;
+  }
+
+  // Update admission charges if provided
+  if (body.admissionCharges !== undefined) {
+    invoice.admissionCharges = body.admissionCharges;
+  }
+
+  // Update seat charge if provided
+  if (body.seatCharge !== undefined) {
+    invoice.seatCharge = body.seatCharge;
+  }
 
   // Recalculate status
   const totalAmount = invoice.totalAmount;

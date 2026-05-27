@@ -57,6 +57,8 @@ const patientSchema = new mongoose.Schema(
     guardianName: { type: String, default: null, trim: true },
     guardianPhone: { type: String, default: null, trim: true },
     emergencyContact: { type: String, default: null, trim: true },
+    advanceAmount: { type: Number, default: 0, min: 0 },
+    advancePaymentMethod: { type: String, default: "Cash" },
     referenceDoctor: { type: String, default: null, trim: true },
     status: {
       type: String,

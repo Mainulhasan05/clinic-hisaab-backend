@@ -47,6 +47,16 @@ const updateInvoiceSchema = Joi.object({
   paymentMethod: Joi.string().valid(...PAYMENT_METHODS),
   discountAmount: Joi.number().min(0),
   totalAmount: Joi.number().min(0),
+  subtotalAmount: Joi.number().min(0),
+  tests: Joi.array().items(testItemSchema),
+  admissionCharges: Joi.object().allow(null),
+  seatCharge: Joi.object({
+    roomName: Joi.string(),
+    bedName: Joi.string(),
+    dailyRate: Joi.number(),
+    days: Joi.number(),
+    total: Joi.number(),
+  }).allow(null),
 }).min(1);
 
 module.exports = { createInvoiceSchema, updateInvoiceSchema };

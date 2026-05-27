@@ -15,6 +15,8 @@ const createPatientSchema = Joi.object({
   guardianPhone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).allow(null, "").default(null)
     .messages({ "string.pattern.base": "Guardian phone must be a valid Bangladeshi 11-digit mobile number" }),
   emergencyContact: Joi.string().trim().allow(null, "").default(null),
+  advanceAmount: Joi.number().min(0).default(0),
+  advancePaymentMethod: Joi.string().allow(null, "").default("Cash"),
   referenceDoctor: Joi.string().trim().allow(null, "").default(null),
 });
 
