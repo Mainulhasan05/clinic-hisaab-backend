@@ -180,4 +180,36 @@ const resetPassword = async ({ phone, otp, newPassword }) => {
   return { success: true };
 };
 
-module.exports = { setup, login, getMe, forgotPassword, resetPassword };
+
+/**
+ * Update own profile — name and/or password.
+ */
+const updateProfile = async (userId, { name, currentPassword, newPassword }) => {
+  const user = await User.findById(userId).select("+password");
+  if (!user) {
+    throw new AppError("User not found.", 404);
+  }
+
+  // Update name if provided
+  if (name) {
+    user.name = name;
+  }
+
+  // Update password if provided (requires current password verification)
+  if (newPassword) {
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      throw new AppError("Current password is incorrect.", 400);
+    }
+    user.password = newPassword; // pre-save hook will hash it
+  }
+
+  await user.save();
+
+  // Return user without password
+  const updatedUser = user.toObject();
+  delete updatedUser.password;
+  return updatedUser;
+};
+
+module.exports = { setup, login, getMe, forgotPassword, resetPassword, updateProfile };

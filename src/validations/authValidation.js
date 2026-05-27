@@ -49,4 +49,13 @@ const resetPasswordSchema = Joi.object({
     }),
 });
 
-module.exports = { setupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema };
+// Used to update own profile (name, password)
+const updateProfileSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(100),
+  currentPassword: Joi.string().min(1),
+  newPassword: Joi.string().min(6).max(128)
+    .messages({ "string.min": "New password must be at least 6 characters" }),
+}).min(1).with("newPassword", "currentPassword")
+  .messages({ "object.with": "Current password is required to set a new password" });
+
+module.exports = { setupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema };

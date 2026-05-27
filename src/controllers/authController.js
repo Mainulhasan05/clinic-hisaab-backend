@@ -46,4 +46,13 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
-module.exports = { setup, login, getMe, forgotPassword, resetPassword };
+const updateProfile = async (req, res, next) => {
+  try {
+    const updatedUser = await authService.updateProfile(req.user._id, req.body);
+    sendResponse(res, 200, "Profile updated successfully.", updatedUser);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { setup, login, getMe, forgotPassword, resetPassword, updateProfile };
