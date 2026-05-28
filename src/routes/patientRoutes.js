@@ -15,5 +15,6 @@ router.post("/", validate(createPatientSchema), ctrl.createPatient);
 router.put("/:id", validate(updatePatientSchema), ctrl.updatePatient);
 router.delete("/:id", authorize("owner", "manager"), ctrl.deletePatient);
 router.put("/:id/discharge", authorize("owner", "manager"), ctrl.dischargePatient);
+router.put("/:id/admit", authorize("owner", "manager"), ctrl.admitPatient);
 
 module.exports = router;

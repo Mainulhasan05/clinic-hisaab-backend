@@ -43,4 +43,11 @@ const dischargePatient = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllPatients, getPatientById, createPatient, updatePatient, deletePatient, dischargePatient };
+const admitPatient = async (req, res, next) => {
+  try {
+    const patient = await patientService.admitPatient(req.params.id, req.body, req.user);
+    sendResponse(res, 200, "Patient admitted.", patient);
+  } catch (error) { next(error); }
+};
+
+module.exports = { getAllPatients, getPatientById, createPatient, updatePatient, deletePatient, dischargePatient, admitPatient };

@@ -260,12 +260,136 @@ const createPatient = async (body, user) => {
   }
 };
 
+/**
+ * Update patient profile fields ONLY.
+ *
+ * BLOCKED TRANSITIONS (must use dedicated endpoints):
+ *   - status → "discharged"  → use PUT /patients/:id/discharge
+ *   - status → "admitted"    → use POST /patients (with seatId) or PUT /patients/:id/admit
+ *   - seatId changes         → use admit/discharge endpoints
+ *
+ * This prevents frontend bugs or stale dispatches from leaving
+ * seats in an inconsistent state.
+ */
 const updatePatient = async (id, body) => {
-  const patient = await Patient.findByIdAndUpdate(id, body, {
+  // ── Guard: block direct status transitions that require seat sync ──
+  if (body.status === "discharged") {
+    throw new AppError(
+      "Cannot set status to 'discharged' directly. Use the discharge endpoint (PUT /patients/:id/discharge).",
+      400
+    );
+  }
+  if (body.status === "admitted") {
+    throw new AppError(
+      "Cannot set status to 'admitted' directly. Use the admission flow (create patient with seatId or PUT /patients/:id/admit).",
+      400
+    );
+  }
+
+  // ── Guard: block direct seatId manipulation ──
+  if (body.seatId !== undefined) {
+    throw new AppError(
+      "Cannot change seatId directly. Use admit/discharge endpoints for seat management.",
+      400
+    );
+  }
+
+  // Only allow safe profile fields through
+  const safeFields = ["name", "age", "gender", "phone", "address", "referenceDoctor", "guardianName", "guardianPhone", "emergencyContact"];
+  const updateData = {};
+  for (const field of safeFields) {
+    if (body[field] !== undefined) {
+      updateData[field] = body[field];
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new AppError("No valid fields to update.", 400);
+  }
+
+  const patient = await Patient.findByIdAndUpdate(id, updateData, {
     new: true,
     runValidators: true,
   });
   if (!patient) throw new AppError("Patient not found.", 404);
+  return patient;
+};
+
+/**
+ * Admit a patient to a specific seat.
+ * Handles all seat↔patient linkage atomically on the backend.
+ */
+const admitPatient = async (id, body, user) => {
+  const { seatId, sendSms = false } = body;
+  if (!seatId) throw new AppError("seatId is required to admit a patient.", 400);
+
+  const patient = await Patient.findById(id);
+  if (!patient) throw new AppError("Patient not found.", 404);
+
+  // If already admitted to the same seat, no-op
+  if (patient.status === "admitted" && patient.seatId && patient.seatId.toString() === seatId) {
+    return patient;
+  }
+
+  // If already admitted to a different seat, block
+  if (patient.status === "admitted" && patient.seatId) {
+    throw new AppError("Patient is already admitted to another seat. Discharge them first.", 400);
+  }
+
+  const seat = await Seat.findById(seatId);
+  if (!seat) throw new AppError("Selected seat not found.", 404);
+  if (seat.status === "occupied") throw new AppError("Selected seat is already occupied.", 400);
+
+  // Update patient
+  patient.type = "inpatient";
+  patient.status = "admitted";
+  patient.seatId = seat._id;
+  patient.roomName = seat.roomName;
+  patient.bedName = seat.bedName;
+  patient.admissionDate = body.admissionDate || new Date();
+  if (body.guardianName) patient.guardianName = body.guardianName;
+  if (body.guardianPhone) patient.guardianPhone = body.guardianPhone;
+  if (body.emergencyContact) patient.emergencyContact = body.emergencyContact;
+  await patient.save();
+
+  // Occupy the seat
+  await Seat.findByIdAndUpdate(seatId, {
+    status: "occupied",
+    patientId: patient._id,
+    patientName: patient.name,
+  });
+
+  await logActivity({
+    type: "admission",
+    description: `Patient admitted: ${patient.name} (${patient.patientId}) to ${seat.roomName} / ${seat.bedName}`,
+    operator: user.name,
+    operatorId: user._id,
+    refId: patient._id,
+    refModel: "Patient",
+  });
+
+  // Trigger admission SMS
+  if (sendSms && patient.phone) {
+    let clinicName = "Nobab Nursing Home";
+    try {
+      const settings = await getSettings();
+      if (settings && settings.name) clinicName = settings.name;
+    } catch (err) {
+      console.error("Failed to get settings for SMS:", err.message);
+    }
+    sendSingleSms(
+      patient.phone,
+      `Dear ${patient.name}, you have been admitted at ${clinicName}. Patient ID: ${patient.patientId}. Room: ${seat.roomName || "N/A"}, Bed: ${seat.bedName || "N/A"}. We wish you a speedy recovery.`,
+      {
+        type: "admission",
+        refId: patient._id,
+        refModel: "Patient",
+        sentBy: user._id,
+        sentByName: user.name,
+      }
+    ).catch((err) => console.error("Admission SMS trigger failed:", err.message));
+  }
+
   return patient;
 };
 
@@ -294,6 +418,13 @@ const deletePatient = async (id, user) => {
   });
 };
 
+/**
+ * Discharge a patient — the ONLY way to move a patient from "admitted" → "discharged".
+ *
+ * This is atomic: patient status, seatId, and the seat record are all
+ * updated in one service call. The frontend does NOT need to make
+ * separate seat update calls.
+ */
 const dischargePatient = async (id, user, body = {}) => {
   const { sendSms = false } = body;
   const patient = await Patient.findById(id);
@@ -309,7 +440,7 @@ const dischargePatient = async (id, user, body = {}) => {
     });
   }
 
-  // Update patient status
+  // Preserve room/bed names for historical reference but clear the active link
   patient.status = "discharged";
   patient.seatId = null;
   await patient.save();
@@ -351,11 +482,101 @@ const dischargePatient = async (id, user, body = {}) => {
 
 };
 
+/**
+ * Consistency guard — heals orphaned seats on server startup.
+ *
+ * Scenarios this fixes:
+ *   1. Seat says "occupied" with patientId, but that patient is discharged or doesn't exist.
+ *   2. Patient says "admitted" with seatId, but that seat is vacant or doesn't exist.
+ *
+ * Runs once when the server boots. Logs every fix so admins can audit.
+ */
+const healOrphanedSeats = async () => {
+  let fixed = 0;
+
+  // ── Case 1: Seat is "occupied" but its patient is not actually admitted to it ──
+  const occupiedSeats = await Seat.find({ status: "occupied" });
+  for (const seat of occupiedSeats) {
+    let shouldFree = false;
+    let reason = "";
+
+    if (!seat.patientId) {
+      shouldFree = true;
+      reason = "patientId is null";
+    } else {
+      const patient = await Patient.findById(seat.patientId);
+      if (!patient) {
+        shouldFree = true;
+        reason = "patient record does not exist";
+      } else if (patient.status !== "admitted") {
+        shouldFree = true;
+        reason = `patient status is '${patient.status}', not 'admitted'`;
+      } else if (!patient.seatId || patient.seatId.toString() !== seat._id.toString()) {
+        shouldFree = true;
+        reason = "patient.seatId does not match this seat";
+      }
+    }
+
+    if (shouldFree) {
+      await Seat.findByIdAndUpdate(seat._id, {
+        status: "vacant",
+        patientId: null,
+        patientName: null,
+      });
+      console.warn(`🔧 [Consistency] Freed orphaned seat ${seat.roomName}/${seat.bedName}: ${reason}`);
+      fixed++;
+    }
+  }
+
+  // ── Case 2: Patient is "admitted" but their seat doesn't reflect it ──
+  const admittedPatients = await Patient.find({ status: "admitted" });
+  for (const patient of admittedPatients) {
+    if (!patient.seatId) {
+      // Patient says admitted but has no seatId — mark as active (lab patient)
+      patient.status = "active";
+      patient.type = "lab";
+      await patient.save();
+      console.warn(`🔧 [Consistency] Patient ${patient.patientId} was 'admitted' with no seatId — reset to 'active'`);
+      fixed++;
+    } else {
+      const seat = await Seat.findById(patient.seatId);
+      if (!seat) {
+        // Seat was deleted — clear the patient's seat reference
+        patient.seatId = null;
+        patient.status = "active";
+        patient.type = "lab";
+        await patient.save();
+        console.warn(`🔧 [Consistency] Patient ${patient.patientId} referenced deleted seat — reset to 'active'`);
+        fixed++;
+      } else if (seat.status !== "occupied" || !seat.patientId || seat.patientId.toString() !== patient._id.toString()) {
+        // Seat exists but doesn't point back to this patient — re-link
+        await Seat.findByIdAndUpdate(seat._id, {
+          status: "occupied",
+          patientId: patient._id,
+          patientName: patient.name,
+        });
+        console.warn(`🔧 [Consistency] Re-linked seat ${seat.roomName}/${seat.bedName} to patient ${patient.patientId}`);
+        fixed++;
+      }
+    }
+  }
+
+  if (fixed > 0) {
+    console.log(`🔧 [Consistency] Healed ${fixed} orphaned seat/patient record(s).`);
+  } else {
+    console.log("✅ [Consistency] All seat/patient records are consistent.");
+  }
+
+  return fixed;
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
   createPatient,
   updatePatient,
+  admitPatient,
   deletePatient,
   dischargePatient,
+  healOrphanedSeats,
 };
