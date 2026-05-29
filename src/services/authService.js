@@ -71,6 +71,10 @@ const login = async ({ phone, password }) => {
     throw new AppError("Your account has been deactivated. Contact the administrator.", 401);
   }
 
+  if (user.softwareAccess === false) {
+    throw new AppError("Your account does not have software access. Contact the administrator.", 403);
+  }
+
   // Compare password
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {

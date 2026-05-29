@@ -29,9 +29,12 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters"],
       select: false,
+    },
+    softwareAccess: {
+      type: Boolean,
+      default: true,
     },
 
     role: {
@@ -68,7 +71,7 @@ const userSchema = new mongoose.Schema(
  * we update ANY field on the user (e.g., changing their name).
  */
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password") || !this.password) return next();
 
   const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12;
   this.password = await bcrypt.hash(this.password, saltRounds);

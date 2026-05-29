@@ -18,6 +18,11 @@ const getAllStaff = async ({ search = "" }) => {
 };
 
 const createStaff = async (body, user) => {
+  // Salary-only staff: strip password so they cannot log in
+  if (body.softwareAccess === false) {
+    delete body.password;
+  }
+
   const newStaff = await User.create(body);
 
   await logActivity({
@@ -43,6 +48,12 @@ const updateStaff = async (id, body, user) => {
 
   const staffDoc = await User.findById(id);
   if (!staffDoc) throw new AppError("Staff member not found.", 404);
+
+  // If toggling software access OFF, clear password so they can't log in
+  if (body.softwareAccess === false) {
+    delete body.password;
+    staffDoc.password = undefined;
+  }
 
   // Update fields on the document
   Object.assign(staffDoc, body);

@@ -3,7 +3,12 @@ const { ROLES } = require("../utils/constants");
 
 const createStaffSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required(),
-  password: Joi.string().min(6).max(128).required(),
+  softwareAccess: Joi.boolean().default(true),
+  password: Joi.when("softwareAccess", {
+    is: false,
+    then: Joi.string().allow("", null).optional(),
+    otherwise: Joi.string().min(6).max(128).required(),
+  }),
   phone: Joi.string().trim().pattern(/^01[3-9]\d{8}$/).required()
     .messages({ "string.pattern.base": "Staff phone must be a valid Bangladeshi 11-digit mobile number" }),
   role: Joi.string().valid(...ROLES).default("operator"),
@@ -16,7 +21,8 @@ const updateStaffSchema = Joi.object({
     .messages({ "string.pattern.base": "Staff phone must be a valid Bangladeshi 11-digit mobile number" }),
   role: Joi.string().valid(...ROLES),
   status: Joi.string().valid("active", "inactive"),
-  password: Joi.string().min(6).max(128),
+  softwareAccess: Joi.boolean(),
+  password: Joi.string().min(6).max(128).allow("", null),
   salary: Joi.number().min(0),
 }).min(1);
 
