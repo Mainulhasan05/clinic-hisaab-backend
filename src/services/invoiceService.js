@@ -16,7 +16,7 @@ const calculateStatus = (paidAmount, totalAmount) => {
   return "unpaid";
 };
 
-const getAllInvoices = async ({ search = "", filterStatus = "all", page = 1, limit = 20 }) => {
+const getAllInvoices = async ({ search = "", filterStatus = "all", dateRange = "all", page = 1, limit = 20 }) => {
   const filter = {};
   if (filterStatus !== "all") filter.status = filterStatus;
   if (search) {
@@ -26,6 +26,46 @@ const getAllInvoices = async ({ search = "", filterStatus = "all", page = 1, lim
       { invoiceId: { $regex: escapedSearch, $options: "i" } },
       { patientPhone: { $regex: escapedSearch, $options: "i" } },
     ];
+  }
+
+  // Date range filtering
+  if (dateRange && dateRange !== "all") {
+    const now = new Date();
+    let startDate, endDate;
+
+    switch (dateRange) {
+      case "today": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "yesterday": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      }
+      case "last7": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "last30": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "thisMonth": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (startDate && endDate) {
+      filter.createdAt = { $gte: startDate, $lt: endDate };
+    }
   }
 
   const skip = (page - 1) * limit;
