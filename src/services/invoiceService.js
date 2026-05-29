@@ -87,11 +87,19 @@ const getInvoiceById = async (id) => {
 
 const createInvoice = async (body, user) => {
   const invoiceId = await generateInvoiceId();
-  const status = calculateStatus(body.paidAmount || 0, body.totalAmount);
+
+  // ── Data integrity: paidAmount must NEVER exceed totalAmount ──
+  const totalAmount = Math.max(0, Number(body.totalAmount) || 0);
+  const paidAmount = Math.min(Math.max(0, Number(body.paidAmount) || 0), totalAmount);
+  const dueAmount = Math.max(0, totalAmount - paidAmount);
+  const status = calculateStatus(paidAmount, totalAmount);
 
   const invoice = await Invoice.create({
     ...body,
     invoiceId,
+    totalAmount,
+    paidAmount,
+    dueAmount,
     status,
     operatorId: user._id,
     operatorName: user.name,
@@ -188,9 +196,11 @@ const updateInvoice = async (id, body, user) => {
     invoice.seatCharge = body.seatCharge;
   }
 
-  // Recalculate status
-  const totalAmount = invoice.totalAmount;
-  const paidAmount = invoice.paidAmount;
+  // ── Data integrity: paidAmount must NEVER exceed totalAmount ──
+  const totalAmount = Math.max(0, Number(invoice.totalAmount) || 0);
+  const paidAmount = Math.min(Math.max(0, Number(invoice.paidAmount) || 0), totalAmount);
+  invoice.totalAmount = totalAmount;
+  invoice.paidAmount = paidAmount;
   invoice.status = calculateStatus(paidAmount, totalAmount);
   invoice.dueAmount = Math.max(0, totalAmount - paidAmount);
 
