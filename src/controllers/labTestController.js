@@ -15,6 +15,13 @@ const getTestCustomerGroups = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getTestCustomerRecords = async (req, res, next) => {
+  try {
+    const result = await labTestService.getTestCustomerRecords(req.query);
+    sendResponse(res, 200, "Customer records fetched.", result);
+  } catch (error) { next(error); }
+};
+
 const createTest = async (req, res, next) => {
   try {
     const test = await labTestService.createTest(req.body, req.user);
@@ -36,4 +43,4 @@ const deleteTest = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllTests, getTestCustomerGroups, createTest, updateTest, deleteTest };
+module.exports = { getAllTests, getTestCustomerGroups, getTestCustomerRecords, createTest, updateTest, deleteTest };

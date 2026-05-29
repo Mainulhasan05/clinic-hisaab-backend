@@ -59,6 +59,7 @@ const updateInvoiceSchema = Joi.object({
     days: Joi.number(),
     total: Joi.number(),
   }).allow(null),
+  correctionReason: Joi.string().trim().max(500).allow(""),
 }).min(1);
 
 module.exports = { createInvoiceSchema, updateInvoiceSchema };

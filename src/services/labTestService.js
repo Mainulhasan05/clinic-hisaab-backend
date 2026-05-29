@@ -45,6 +45,7 @@ const deleteTest = async (id, user) => {
   });
 };
 
+/** @deprecated Use getTestCustomerRecords instead — this loads all invoices without pagination. */
 const getTestCustomerGroups = async ({ search = "", customerLimit = 20 } = {}) => {
   customerLimit = Math.min(Math.max(parseInt(customerLimit, 10) || 20, 1), 50);
   const tests = await LabTest.find({ isActive: true }).sort({ name: 1 }).lean();
@@ -124,4 +125,146 @@ const getTestCustomerGroups = async ({ search = "", customerLimit = 20 } = {}) =
     });
 };
 
-module.exports = { getAllTests, createTest, updateTest, deleteTest, getTestCustomerGroups };
+/**
+ * Paginated customer records for lab test directory.
+ * Runs two parallel queries:
+ *   1. find() with skip/limit for page records
+ *   2. aggregate() for lightweight summary stats
+ * Stats object is filter-aware (reflects current search/filter state).
+ */
+const getTestCustomerRecords = async ({
+  search = "",
+  testName = "all",
+  filterStatus = "all",
+  dateRange = "all",
+  page = 1,
+  limit = 20,
+} = {}) => {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+
+  const filter = { status: { $ne: "cancelled" } };
+
+  // Filter by specific lab test name
+  if (testName && testName !== "all") {
+    filter["tests.name"] = testName;
+  }
+
+  // Filter by payment status (overrides the $ne cancelled base)
+  if (filterStatus && filterStatus !== "all") {
+    filter.status = filterStatus;
+  }
+
+  // Search across patient name, phone, invoice ID, and test names
+  if (search && search.trim()) {
+    const escapedSearch = escapeRegex(search.trim());
+    const regex = { $regex: escapedSearch, $options: "i" };
+    filter.$or = [
+      { patientName: regex },
+      { patientPhone: regex },
+      { invoiceId: regex },
+      { "tests.name": regex },
+    ];
+  }
+
+  // Date range filtering
+  if (dateRange && dateRange !== "all") {
+    const now = new Date();
+    let startDate, endDate;
+
+    switch (dateRange) {
+      case "today": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "yesterday": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      }
+      case "last7": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "last30": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
+      }
+      case "thisMonth": {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (startDate && endDate) {
+      filter.createdAt = { $gte: startDate, $lt: endDate };
+    }
+  }
+
+  const skip = (page - 1) * limit;
+
+  // Select only the fields the frontend needs — keeps response lean
+  const projection = {
+    invoiceId: 1,
+    createdAt: 1,
+    patientId: 1,
+    patientSerial: 1,
+    patientName: 1,
+    patientPhone: 1,
+    patientAge: 1,
+    patientGender: 1,
+    tests: 1,
+    totalAmount: 1,
+    paidAmount: 1,
+    dueAmount: 1,
+    status: 1,
+    operatorName: 1,
+    receiptType: 1,
+  };
+
+  // Run page query and stats aggregation in parallel
+  const [customers, total, statsResult] = await Promise.all([
+    Invoice.find(filter, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Invoice.countDocuments(filter),
+    Invoice.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" },
+          totalCollected: { $sum: "$paidAmount" },
+          totalDue: { $sum: "$dueAmount" },
+          paidCount: { $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] } },
+          partialCount: { $sum: { $cond: [{ $eq: ["$status", "partial"] }, 1, 0] } },
+          unpaidCount: { $sum: { $cond: [{ $eq: ["$status", "unpaid"] }, 1, 0] } },
+        },
+      },
+    ]),
+  ]);
+
+  const stats = statsResult[0] || {
+    totalRevenue: 0,
+    totalCollected: 0,
+    totalDue: 0,
+    paidCount: 0,
+    partialCount: 0,
+    unpaidCount: 0,
+  };
+  delete stats._id;
+
+  return {
+    customers,
+    total,
+    page: Number(page),
+    pages: Math.ceil(total / limit),
+    stats,
+  };
+};
+
+module.exports = { getAllTests, createTest, updateTest, deleteTest, getTestCustomerGroups, getTestCustomerRecords };

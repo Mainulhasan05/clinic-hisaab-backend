@@ -195,6 +195,16 @@ const updateInvoice = async (id, body, user) => {
   invoice.dueAmount = Math.max(0, totalAmount - paidAmount);
 
   await invoice.save();
+
+  await logActivity({
+    type: "billing",
+    description: `Invoice ${invoice.invoiceId} corrected (${invoice.patientName})${body.correctionReason ? `: ${body.correctionReason}` : ""}`,
+    operator: user?.name || "System",
+    operatorId: user?._id,
+    refId: invoice._id,
+    refModel: "Invoice",
+  });
+
   return invoice;
 };
 
