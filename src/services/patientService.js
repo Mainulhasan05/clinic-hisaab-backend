@@ -312,6 +312,12 @@ const updatePatient = async (id, body) => {
     runValidators: true,
   });
   if (!patient) throw new AppError("Patient not found.", 404);
+
+  // Keep seat patientName in sync if name changes and patient is admitted
+  if (updateData.name && patient.seatId) {
+    await Seat.findByIdAndUpdate(patient.seatId, { patientName: patient.name });
+  }
+
   return patient;
 };
 
