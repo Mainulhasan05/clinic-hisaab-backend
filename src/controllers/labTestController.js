@@ -8,6 +8,13 @@ const getAllTests = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getTestCustomerGroups = async (req, res, next) => {
+  try {
+    const result = await labTestService.getTestCustomerGroups(req.query);
+    sendResponse(res, 200, "Test customer groups fetched.", result);
+  } catch (error) { next(error); }
+};
+
 const createTest = async (req, res, next) => {
   try {
     const test = await labTestService.createTest(req.body, req.user);
@@ -29,4 +36,4 @@ const deleteTest = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllTests, createTest, updateTest, deleteTest };
+module.exports = { getAllTests, getTestCustomerGroups, createTest, updateTest, deleteTest };

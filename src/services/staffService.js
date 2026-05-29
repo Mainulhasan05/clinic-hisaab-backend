@@ -124,7 +124,47 @@ const paySalary = async (staffId, { month, amount }, user) => {
 const getSalaryHistory = async (staffId) => {
   const staff = await User.findById(staffId);
   if (!staff) throw new AppError("Staff member not found.", 404);
-  return Expense.find({ staffId, category: "staff_salaries" }).sort({ salaryMonth: -1 });
+  return Expense.find({ staffId, category: "staff_salaries" }).sort({ salaryMonth: -1 }).lean();
+};
+
+const getSalaryReport = async ({ month }) => {
+  if (!/^\d{4}-\d{2}$/.test(month || "")) {
+    throw new AppError("Month must be in YYYY-MM format.", 400);
+  }
+
+  const [staffList, salaryExpenses] = await Promise.all([
+    User.find({}).select("-password").sort({ createdAt: -1 }).lean(),
+    Expense.find({ category: "staff_salaries", salaryMonth: month }).lean(),
+  ]);
+
+  const paymentMap = new Map(salaryExpenses.map((expense) => [String(expense.staffId), expense]));
+  const staff = staffList.map((member) => {
+    const payment = paymentMap.get(String(member._id));
+    return {
+      _id: member._id,
+      name: member.name,
+      phone: member.phone,
+      role: member.role,
+      expectedSalary: member.salary || 0,
+      paidAmount: payment ? payment.amount : 0,
+      isPaid: !!payment,
+      paidDate: payment ? payment.date : null,
+      paidBy: payment ? payment.addedBy : null,
+    };
+  });
+
+  const totalExpected = staff.reduce((sum, row) => sum + row.expectedSalary, 0);
+  const totalPaid = staff.reduce((sum, row) => sum + row.paidAmount, 0);
+  const paidCount = staff.filter((row) => row.isPaid).length;
+
+  return {
+    month,
+    staff,
+    totalExpected,
+    totalPaid,
+    paidCount,
+    unpaidCount: staff.length - paidCount,
+  };
 };
 
 module.exports = {
@@ -134,4 +174,5 @@ module.exports = {
   deleteStaff,
   paySalary,
   getSalaryHistory,
+  getSalaryReport,
 };

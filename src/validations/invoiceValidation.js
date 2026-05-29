@@ -42,6 +42,8 @@ const createInvoiceSchema = Joi.object({
 });
 
 const updateInvoiceSchema = Joi.object({
+  status: Joi.string().valid("cancelled"),
+  cancelReason: Joi.string().trim().max(500),
   paidAmount: Joi.number().min(0),
   dueAmount: Joi.number().min(0),
   paymentMethod: Joi.string().valid(...PAYMENT_METHODS),

@@ -5,24 +5,40 @@
  * Same logic as generatePatientId but for invoices.
  */
 const Invoice = require("../models/Invoice");
+const Counter = require("../models/Counter");
 
 const generateInvoiceId = async () => {
   const year = new Date().getFullYear();
+  const counterId = `invoice-${year}`;
 
-  const lastInvoice = await Invoice.findOne({})
-    .sort({ createdAt: -1 })
-    .select("invoiceId");
+  const existingCounter = await Counter.findById(counterId).select("seq");
+  if (!existingCounter) {
+    const lastInvoice = await Invoice.findOne({ invoiceId: { $regex: `^INV-${year}-` } })
+      .sort({ invoiceId: -1 })
+      .select("invoiceId");
 
-  let nextNumber = 1;
+    let maxNumber = 0;
+    if (lastInvoice && lastInvoice.invoiceId) {
+      const parts = lastInvoice.invoiceId.split("-");
+      const lastNumber = parseInt(parts[2], 10);
+      if (!isNaN(lastNumber)) {
+        maxNumber = lastNumber;
+      }
+    }
 
-  if (lastInvoice && lastInvoice.invoiceId) {
-    const parts = lastInvoice.invoiceId.split("-");
-    const lastNumber = parseInt(parts[2], 10);
-    if (!isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1;
+    try {
+      await Counter.create({ _id: counterId, seq: maxNumber });
+    } catch (err) {
+      if (err.code !== 11000) throw err;
     }
   }
 
+  const counter = await Counter.findByIdAndUpdate(
+    counterId,
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const nextNumber = counter.seq;
   const padded = String(nextNumber).padStart(4, "0");
   return `INV-${year}-${padded}`;
 };

@@ -18,6 +18,7 @@ router.put("/:id", authorize("owner"), validate(updateStaffSchema), ctrl.updateS
 router.delete("/:id", authorize("owner"), ctrl.deleteStaff);
 
 // Salary operations (owner only)
+router.get("/salary-report", authorize("owner"), ctrl.getSalaryReport);
 router.post("/:id/pay-salary", authorize("owner"), validate(paySalarySchema), ctrl.paySalary);
 router.get("/:id/salary-history", authorize("owner"), ctrl.getSalaryHistory);
 

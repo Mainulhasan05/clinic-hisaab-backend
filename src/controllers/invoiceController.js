@@ -24,7 +24,7 @@ const createInvoice = async (req, res, next) => {
 
 const updateInvoice = async (req, res, next) => {
   try {
-    const invoice = await invoiceService.updateInvoice(req.params.id, req.body);
+    const invoice = await invoiceService.updateInvoice(req.params.id, req.body, req.user);
     sendResponse(res, 200, "Invoice updated.", invoice);
   } catch (error) { next(error); }
 };

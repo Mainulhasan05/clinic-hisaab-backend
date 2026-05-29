@@ -43,4 +43,11 @@ const getSalaryHistory = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getAllStaff, createStaff, updateStaff, deleteStaff, paySalary, getSalaryHistory };
+const getSalaryReport = async (req, res, next) => {
+  try {
+    const report = await staffService.getSalaryReport(req.query);
+    sendResponse(res, 200, "Salary report fetched.", report);
+  } catch (error) { next(error); }
+};
+
+module.exports = { getAllStaff, createStaff, updateStaff, deleteStaff, paySalary, getSalaryHistory, getSalaryReport };

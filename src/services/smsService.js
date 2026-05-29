@@ -386,6 +386,8 @@ const checkBalance = async () => {
  * Get paginated SMS logs matching given filter options.
  */
 const getSmsLogs = async ({ type, status, recipient, startDate, endDate, page = 1, limit = 20 }) => {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const filter = {};
 
   if (type) {
@@ -415,14 +417,15 @@ const getSmsLogs = async ({ type, status, recipient, startDate, endDate, page = 
       .populate("sentBy", "name email role")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit)
+      .lean(),
     SmsLog.countDocuments(filter)
   ]);
 
   return {
     logs,
     total,
-    page: Number(page),
+    page,
     pages: Math.ceil(total / limit)
   };
 };

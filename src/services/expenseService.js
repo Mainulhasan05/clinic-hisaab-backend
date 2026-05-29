@@ -4,6 +4,8 @@ const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
 const getAllExpenses = async ({ search = "", category = "all", page = 1, limit = 50 }) => {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
   const filter = {};
   if (category !== "all") filter.category = category;
   if (search) {
@@ -11,12 +13,23 @@ const getAllExpenses = async ({ search = "", category = "all", page = 1, limit =
   }
 
   const skip = (page - 1) * limit;
-  const [expenses, total] = await Promise.all([
-    Expense.find(filter).sort({ date: -1 }).skip(skip).limit(limit),
+  const [expenses, total, totals] = await Promise.all([
+    Expense.find(filter).sort({ date: -1 }).skip(skip).limit(limit).lean(),
     Expense.countDocuments(filter),
+    Expense.aggregate([
+      { $match: filter },
+      { $group: { _id: null, totalAmount: { $sum: "$amount" } } },
+    ]),
   ]);
 
-  return { expenses, total, page: Number(page), pages: Math.ceil(total / limit) };
+  return {
+    expenses,
+    total,
+    totalAmount: totals[0]?.totalAmount || 0,
+    page,
+    pages: Math.ceil(total / limit),
+    limit,
+  };
 };
 
 const getExpenseSummary = async () => {

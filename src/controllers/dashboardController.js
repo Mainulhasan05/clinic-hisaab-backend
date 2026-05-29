@@ -22,6 +22,13 @@ const getAnalytics = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getCollectionReport = async (req, res, next) => {
+  try {
+    const result = await dashboardService.getCollectionReport(req.query);
+    sendResponse(res, 200, "Collection report fetched.", result);
+  } catch (error) { next(error); }
+};
+
 const getRecentActivity = async (req, res, next) => {
   try {
     const result = await dashboardService.getRecentActivity(req.query);
@@ -36,4 +43,4 @@ const getMonthlyFinancials = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getDashboardStats, getDailySales, getAnalytics, getRecentActivity, getMonthlyFinancials };
+module.exports = { getDashboardStats, getDailySales, getAnalytics, getCollectionReport, getRecentActivity, getMonthlyFinancials };

@@ -129,6 +129,10 @@ const invoiceSchema = new mongoose.Schema(
       enum: INVOICE_STATUSES,
       required: true,
     },
+    cancelReason: { type: String, default: "" },
+    cancelledAt: { type: Date, default: null },
+    cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    cancelledByName: { type: String, default: "" },
     // IMMUTABLE audit fields — set once at creation
     operatorId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -148,6 +152,10 @@ const invoiceSchema = new mongoose.Schema(
 invoiceSchema.index({ createdAt: -1 });
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ receiptType: 1, createdAt: -1 });
+invoiceSchema.index({ receiptType: 1, status: 1, createdAt: -1 });
+invoiceSchema.index({ patientPhone: 1, createdAt: -1 });
+invoiceSchema.index({ patientName: 1, createdAt: -1 });
+invoiceSchema.index({ "tests.name": 1, status: 1 });
 invoiceSchema.index({ dueAmount: 1 });
 invoiceSchema.index({ patientId: 1, createdAt: -1 });
 

@@ -18,7 +18,7 @@ const GENDERS = ["Male", "Female", "Other"];
 
 const SEAT_STATUSES = ["vacant", "occupied"];
 
-const INVOICE_STATUSES = ["paid", "partial", "unpaid"];
+const INVOICE_STATUSES = ["paid", "partial", "unpaid", "cancelled"];
 
 const RECEIPT_TYPES = ["lab", "admission"];
 

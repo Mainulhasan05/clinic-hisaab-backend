@@ -79,6 +79,10 @@ const patientSchema = new mongoose.Schema(
 // Index for fast phone lookups (not unique)
 patientSchema.index({ phone: 1 });
 patientSchema.index({ type: 1, status: 1, createdAt: -1 });
+patientSchema.index({ type: 1, status: 1, gender: 1, createdAt: -1 });
+patientSchema.index({ status: 1, createdAt: -1 });
+patientSchema.index({ gender: 1, createdAt: -1 });
+patientSchema.index({ name: 1 });
 patientSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Patient", patientSchema);

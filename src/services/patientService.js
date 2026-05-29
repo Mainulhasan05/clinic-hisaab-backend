@@ -1,4 +1,5 @@
 const Patient = require("../models/Patient");
+const Invoice = require("../models/Invoice");
 const Seat = require("../models/Seat");
 const AppError = require("../utils/AppError");
 const generatePatientId = require("../utils/generatePatientId");
@@ -8,12 +9,42 @@ const { sendSingleSms } = require("./smsService");
 const { getSettings } = require("./settingsService");
 
 
-const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit = 20 }) => {
+const getAllPatients = async ({
+  search = "",
+  filterType = "all",
+  filterStatus = "all",
+  filterGender = "all",
+  filterDateFrom = "",
+  filterDateTo = "",
+  testName = "all",
+  page = 1,
+  limit = 20,
+}) => {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const filter = {};
 
   // Apply type filter
   if (filterType !== "all") {
     filter.type = filterType;
+  }
+
+  if (filterStatus !== "all") {
+    filter.status = filterStatus;
+  }
+
+  if (filterGender !== "all") {
+    filter.gender = filterGender;
+  }
+
+  if (filterDateFrom || filterDateTo) {
+    filter.createdAt = {};
+    if (filterDateFrom) filter.createdAt.$gte = new Date(`${filterDateFrom}T00:00:00`);
+    if (filterDateTo) {
+      const endDate = new Date(`${filterDateTo}T00:00:00`);
+      endDate.setDate(endDate.getDate() + 1);
+      filter.createdAt.$lt = endDate;
+    }
   }
 
   // Apply search (searches name, phone, and patientId)
@@ -26,9 +57,17 @@ const getAllPatients = async ({ search = "", filterType = "all", page = 1, limit
     ];
   }
 
+  if (testName && testName !== "all") {
+    const patientIds = await Invoice.distinct("patientId", {
+      status: { $ne: "cancelled" },
+      "tests.name": testName,
+    });
+    filter._id = { $in: patientIds };
+  }
+
   const skip = (page - 1) * limit;
   const [patients, total] = await Promise.all([
-    Patient.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Patient.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     Patient.countDocuments(filter),
   ]);
 

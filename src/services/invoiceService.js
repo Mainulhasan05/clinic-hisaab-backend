@@ -17,6 +17,8 @@ const calculateStatus = (paidAmount, totalAmount) => {
 };
 
 const getAllInvoices = async ({ search = "", filterStatus = "all", dateRange = "all", page = 1, limit = 20 }) => {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const filter = {};
   if (filterStatus !== "all") filter.status = filterStatus;
   if (search) {
@@ -70,7 +72,7 @@ const getAllInvoices = async ({ search = "", filterStatus = "all", dateRange = "
 
   const skip = (page - 1) * limit;
   const [invoices, total] = await Promise.all([
-    Invoice.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Invoice.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     Invoice.countDocuments(filter),
   ]);
 
@@ -132,9 +134,36 @@ const createInvoice = async (body, user) => {
 
 };
 
-const updateInvoice = async (id, body) => {
+const updateInvoice = async (id, body, user) => {
   const invoice = await Invoice.findById(id);
   if (!invoice) throw new AppError("Invoice not found.", 404);
+
+  if (body.status === "cancelled") {
+    if (invoice.status === "cancelled") {
+      return invoice;
+    }
+    invoice.status = "cancelled";
+    invoice.cancelReason = body.cancelReason || "";
+    invoice.cancelledAt = new Date();
+    invoice.cancelledBy = user?._id || null;
+    invoice.cancelledByName = user?.name || "";
+    await invoice.save();
+
+    await logActivity({
+      type: "billing",
+      description: `Invoice ${invoice.invoiceId} cancelled (${invoice.patientName})`,
+      operator: user?.name || "System",
+      operatorId: user?._id,
+      refId: invoice._id,
+      refModel: "Invoice",
+    });
+
+    return invoice;
+  }
+
+  if (invoice.status === "cancelled") {
+    throw new AppError("Cancelled invoices cannot be modified.", 400);
+  }
 
   // Update simple payment fields
   const simpleFields = ["paidAmount", "dueAmount", "paymentMethod", "discountAmount", "totalAmount", "subtotalAmount"];
