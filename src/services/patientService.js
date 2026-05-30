@@ -130,10 +130,8 @@ const createPatient = async (body, user) => {
       if (body.guardianPhone) existingPatient.guardianPhone = body.guardianPhone;
       if (body.emergencyContact) existingPatient.emergencyContact = body.emergencyContact;
       if (body.referenceDoctor) existingPatient.referenceDoctor = body.referenceDoctor;
-      if (body.advanceAmount > 0) {
-        existingPatient.advanceAmount = body.advanceAmount;
-        existingPatient.advancePaymentMethod = body.advancePaymentMethod || "Cash";
-      }
+      existingPatient.advanceAmount = body.advanceAmount || 0;
+      existingPatient.advancePaymentMethod = body.advancePaymentMethod || "Cash";
 
       await existingPatient.save();
 
