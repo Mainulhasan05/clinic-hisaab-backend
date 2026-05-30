@@ -45,14 +45,12 @@ const setup = async ({ nursingHomeName, ownerName, phone, password }) => {
 
   const token = generateToken(owner);
 
+  const ownerObj = owner.toObject();
+  delete ownerObj.password;
+
   return {
     token,
-    user: {
-      _id: owner._id,
-      name: owner.name,
-      phone: owner.phone,
-      role: owner.role,
-    },
+    user: ownerObj,
   };
 };
 
@@ -83,14 +81,12 @@ const login = async ({ phone, password }) => {
 
   const token = generateToken(user);
 
+  const userObj = user.toObject();
+  delete userObj.password;
+
   return {
     token,
-    user: {
-      _id: user._id,
-      name: user.name,
-      phone: user.phone,
-      role: user.role,
-    },
+    user: userObj,
   };
 };
 
