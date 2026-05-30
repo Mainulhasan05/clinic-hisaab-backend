@@ -469,12 +469,23 @@ const deletePatient = async (id, user) => {
  * This is atomic: patient status, seatId, and the seat record are all
  * updated in one service call. The frontend does NOT need to make
  * separate seat update calls.
+ *
+ * If invoiceData is provided, a final invoice is created atomically
+ * as part of the discharge. Advance amount is reconciled and reset.
  */
 const dischargePatient = async (id, user, body = {}) => {
-  const { sendSms = false } = body;
+  const { sendSms = false, invoiceData = null } = body;
   const patient = await Patient.findById(id);
   if (!patient) throw new AppError("Patient not found.", 404);
   if (patient.status !== "admitted") throw new AppError("Patient is not currently admitted.", 400);
+
+  let createdInvoice = null;
+
+  // ── Create final invoice if invoiceData is provided ──
+  if (invoiceData) {
+    const invoiceService = require("./invoiceService");
+    createdInvoice = await invoiceService.createInvoice(invoiceData, user);
+  }
 
   // Free the seat
   if (patient.seatId) {
@@ -487,12 +498,17 @@ const dischargePatient = async (id, user, body = {}) => {
 
   // Preserve room/bed names for historical reference but clear the active link
   patient.status = "discharged";
+  patient.dischargeDate = new Date();
   patient.seatId = null;
+  // Reset advance amount — it has been reconciled into the invoice
+  if (createdInvoice) {
+    patient.advanceAmount = 0;
+  }
   await patient.save();
 
   await logActivity({
     type: "discharge",
-    description: `Patient discharged: ${patient.name} from ${patient.roomName || "N/A"}, ${patient.bedName || "N/A"}`,
+    description: `Patient discharged: ${patient.name} from ${patient.roomName || "N/A"}, ${patient.bedName || "N/A"}${createdInvoice ? ` — Final bill: ${createdInvoice.invoiceId}` : ""}`,
     operator: user.name,
     operatorId: user._id,
     refId: patient._id,
@@ -523,7 +539,7 @@ const dischargePatient = async (id, user, body = {}) => {
     ).catch((err) => console.error("Discharge SMS trigger failed:", err.message));
   }
 
-  return patient;
+  return { patient, invoice: createdInvoice };
 
 };
 

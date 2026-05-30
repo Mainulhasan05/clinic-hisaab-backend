@@ -59,6 +59,7 @@ const patientSchema = new mongoose.Schema(
     emergencyContact: { type: String, default: null, trim: true },
     advanceAmount: { type: Number, default: 0, min: 0 },
     advancePaymentMethod: { type: String, default: "Cash" },
+    dischargeDate: { type: Date, default: null },
     referenceDoctor: { type: String, default: null, trim: true },
     status: {
       type: String,
