@@ -5,36 +5,77 @@ const Expense = require("../models/Expense");
 const ActivityLog = require("../models/ActivityLog");
 const escapeRegex = require("../utils/escapeRegex");
 
+const BUSINESS_TIMEZONE = process.env.BUSINESS_TIMEZONE || "Asia/Dhaka";
+const BUSINESS_TZ_OFFSET_MINUTES = Number.parseInt(process.env.BUSINESS_TZ_OFFSET_MINUTES, 10) || 360;
+
 const parsePositiveInt = (value, fallback, max = 100) => {
   const parsed = parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, max);
 };
 
+const getBusinessDateParts = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value),
+    month: Number(parts.find((part) => part.type === "month")?.value),
+    day: Number(parts.find((part) => part.type === "day")?.value),
+  };
+};
+
+const parseDateString = (dateString) => {
+  const [year, month, day] = String(dateString || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return getBusinessDateParts();
+  }
+  return { year, month, day };
+};
+
+const businessDateToUtcDate = (year, month, day) => {
+  return new Date(Date.UTC(year, month - 1, day) - BUSINESS_TZ_OFFSET_MINUTES * 60 * 1000);
+};
+
+const localDateGroup = (field) => ({
+  $dateToString: { format: "%Y-%m-%d", date: field, timezone: BUSINESS_TIMEZONE },
+});
+
+const formatBusinessDate = (date) => {
+  if (!date) return "";
+  const parts = getBusinessDateParts(new Date(date));
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+};
+
 const dayRange = (dateString) => {
-  const base = dateString ? new Date(`${dateString}T00:00:00`) : new Date();
-  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  const end = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1);
+  const { year, month, day } = parseDateString(dateString);
+  const start = businessDateToUtcDate(year, month, day);
+  const end = businessDateToUtcDate(year, month, day + 1);
   return { start, end };
 };
 
 const monthRange = (monthString) => {
   const [year, month] = String(monthString || "").split("-").map(Number);
-  const now = new Date();
-  const safeYear = Number.isFinite(year) ? year : now.getFullYear();
-  const safeMonth = Number.isFinite(month) ? month - 1 : now.getMonth();
+  const today = getBusinessDateParts();
+  const safeYear = Number.isFinite(year) ? year : today.year;
+  const safeMonth = Number.isFinite(month) ? month : today.month;
   return {
-    start: new Date(safeYear, safeMonth, 1),
-    end: new Date(safeYear, safeMonth + 1, 1),
+    start: businessDateToUtcDate(safeYear, safeMonth, 1),
+    end: businessDateToUtcDate(safeYear, safeMonth + 1, 1),
   };
 };
 
 const getDateRanges = () => {
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { now, startOfToday, startOfTomorrow, startOfMonth };
+  const today = getBusinessDateParts(now);
+  const startOfToday = businessDateToUtcDate(today.year, today.month, today.day);
+  const startOfTomorrow = businessDateToUtcDate(today.year, today.month, today.day + 1);
+  const startOfMonth = businessDateToUtcDate(today.year, today.month, 1);
+  return { now, startOfToday, startOfTomorrow, startOfMonth, today };
 };
 
 const splitPaidStages = [
@@ -132,9 +173,8 @@ const buildCollectionMatch = ({
     const range = dayRange(selectedDate);
     match.createdAt = { $gte: range.start, $lt: range.end };
   } else if (filterMode === "range") {
-    const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
-    const end = endDate ? new Date(`${endDate}T00:00:00`) : null;
-    if (end) end.setDate(end.getDate() + 1);
+    const start = startDate ? dayRange(startDate).start : null;
+    const end = endDate ? dayRange(endDate).end : null;
     if (start || end) {
       match.createdAt = {};
       if (start) match.createdAt.$gte = start;
@@ -177,7 +217,7 @@ const buildCollectionMatch = ({
 };
 
 const getDashboardStats = async () => {
-  const { startOfToday, startOfTomorrow, startOfMonth } = getDateRanges();
+  const { startOfToday, startOfTomorrow, startOfMonth, today } = getDateRanges();
 
   const sevenDaysAgo = new Date(startOfToday);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
@@ -234,7 +274,7 @@ const getDashboardStats = async () => {
       { $match: { status: { $ne: "cancelled" }, createdAt: { $gte: sevenDaysAgo } } },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: localDateGroup("$createdAt"),
           revenue: { $sum: "$totalAmount" },
           patients: { $sum: 1 },
           tests: { $sum: { $size: { $ifNull: ["$tests", []] } } },
@@ -245,9 +285,8 @@ const getDashboardStats = async () => {
 
   const dateKeys = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(startOfToday);
-    d.setDate(d.getDate() - i);
-    dateKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    const d = new Date(Date.UTC(today.year, today.month - 1, today.day - i));
+    dateKeys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`);
   }
 
   const sparklineMap = new Map(lastSevenDaysSummary.map((row) => [row._id, row]));
@@ -255,27 +294,27 @@ const getDashboardStats = async () => {
   const patientSparkline = dateKeys.map((key) => sparklineMap.get(key)?.patients || 0);
   const testSparkline = dateKeys.map((key) => sparklineMap.get(key)?.tests || 0);
 
-  const today = todayInvoiceSummary[0] || {};
+  const todaySummary = todayInvoiceSummary[0] || {};
   const monthlyRevenue = monthlyRevenueResult[0]?.total || 0;
   const monthlyExpenses = monthlyExpensesResult[0]?.total || 0;
 
   return {
     totalPatients,
     activeInpatients,
-    todayLabTests: today.todayLabTests || 0,
-    todayRevenue: today.todayRevenue || 0,
+    todayLabTests: todaySummary.todayLabTests || 0,
+    todayRevenue: todaySummary.todayRevenue || 0,
     monthlyRevenue,
     vacantSeats,
     totalSeats,
     pendingDues: pendingDuesResult[0]?.total || 0,
     totalDiscount: totalDiscountResult[0]?.total || 0,
-    todayLabCollection: today.todayLabCollection || 0,
-    todayAdmissionCollection: today.todayAdmissionCollection || 0,
+    todayLabCollection: todaySummary.todayLabCollection || 0,
+    todayAdmissionCollection: todaySummary.todayAdmissionCollection || 0,
     monthlyExpenses,
     netProfit: monthlyRevenue - monthlyExpenses,
-    avgDailyRevenue: Math.round(monthlyRevenue / new Date().getDate()),
+    avgDailyRevenue: Math.round(monthlyRevenue / today.day),
     newPatientsThisMonth,
-    todayPatientCount: today.todayPatientCount || 0,
+    todayPatientCount: todaySummary.todayPatientCount || 0,
     revenueSparkline,
     patientSparkline,
     testSparkline,
@@ -292,7 +331,7 @@ const getDailySales = async ({ days = 30 }) => {
     { $match: { status: { $ne: "cancelled" }, createdAt: { $gte: startDate } } },
     {
       $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        _id: localDateGroup("$createdAt"),
         totalSales: { $sum: "$totalAmount" },
         labSales: {
           $sum: { $cond: [{ $eq: ["$receiptType", "lab"] }, "$totalAmount", 0] },
@@ -380,7 +419,7 @@ const getCollectionReport = async (query = {}) => {
       ...splitPaidStages,
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: localDateGroup("$createdAt"),
           receipts: { $sum: 1 },
           labCollection: { $sum: "$labPaid" },
           admissionCollection: { $sum: "$admissionPaid" },
@@ -411,7 +450,10 @@ const getCollectionReport = async (query = {}) => {
       totalDiscount: 0,
     },
     dailyRows,
-    receipts,
+    receipts: receipts.map((receipt) => ({
+      ...receipt,
+      receiptDate: formatBusinessDate(receipt.createdAt),
+    })),
     total,
     page,
     pages: Math.ceil(total / limit),
@@ -437,7 +479,7 @@ const getMonthlyFinancials = async (months = 12) => {
       { $match: { status: { $ne: "cancelled" }, createdAt: { $gte: startDate } } },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: BUSINESS_TIMEZONE } },
           totalIncome: { $sum: "$totalAmount" },
         },
       },
@@ -447,7 +489,7 @@ const getMonthlyFinancials = async (months = 12) => {
       {
         $group: {
           _id: {
-            month: { $dateToString: { format: "%Y-%m", date: "$date" } },
+            month: { $dateToString: { format: "%Y-%m", date: "$date", timezone: BUSINESS_TIMEZONE } },
             category: "$category",
           },
           totalAmount: { $sum: "$amount" },
