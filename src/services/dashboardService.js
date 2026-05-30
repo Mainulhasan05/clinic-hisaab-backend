@@ -461,9 +461,27 @@ const getCollectionReport = async (query = {}) => {
   };
 };
 
-const getRecentActivity = async ({ limit = 15 }) => {
-  const parsedLimit = parsePositiveInt(limit, 15, 50);
-  return ActivityLog.find({}).sort({ createdAt: -1 }).limit(parsedLimit).lean();
+const getRecentActivity = async ({ limit = 15, page = 1, type } = {}) => {
+  const parsedLimit = parsePositiveInt(limit, 15, 100);
+  const parsedPage = parsePositiveInt(page, 1, 1000);
+  const skip = (parsedPage - 1) * parsedLimit;
+
+  const filter = {};
+  if (type && type !== "all") {
+    filter.type = type;
+  }
+
+  const [activities, total] = await Promise.all([
+    ActivityLog.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parsedLimit).lean(),
+    ActivityLog.countDocuments(filter),
+  ]);
+
+  return {
+    activities,
+    total,
+    page: parsedPage,
+    pages: Math.ceil(total / parsedLimit),
+  };
 };
 
 const getMonthlyFinancials = async (months = 12) => {
