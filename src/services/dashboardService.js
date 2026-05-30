@@ -104,7 +104,8 @@ const splitPaidStages = [
         ],
       },
       isAdmissionReceipt: {
-        $or: [
+        $cond: [
+          { $ifNull: ["$receiptType", false] },
           { $eq: ["$receiptType", "admission"] },
           { $eq: ["$patientType", "inpatient"] },
         ],
@@ -188,7 +189,7 @@ const buildCollectionMatch = ({
   if (reportType === "lab") {
     match.receiptType = { $ne: "admission" };
   } else if (reportType === "admission") {
-    match.$or = [{ receiptType: "admission" }, { patientType: "inpatient" }];
+    match.$or = [{ receiptType: "admission" }, { receiptType: { $exists: false }, patientType: "inpatient" }];
   } else if (reportType === "due") {
     match.dueAmount = { $gt: 0 };
   } else if (reportType === "discount") {
@@ -344,7 +345,13 @@ const getDailySales = async ({ days = 30 }) => {
         newAdmissions: {
           $sum: {
             $cond: [
-              { $or: [{ $eq: ["$receiptType", "admission"] }, { $eq: ["$patientType", "inpatient"] }] },
+              {
+                $cond: [
+                  { $ifNull: ["$receiptType", false] },
+                  { $eq: ["$receiptType", "admission"] },
+                  { $eq: ["$patientType", "inpatient"] },
+                ],
+              },
               1,
               0,
             ],
