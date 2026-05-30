@@ -16,11 +16,12 @@ const calculateStatus = (paidAmount, totalAmount) => {
   return "unpaid";
 };
 
-const getAllInvoices = async ({ search = "", filterStatus = "all", dateRange = "all", page = 1, limit = 20 }) => {
+const getAllInvoices = async ({ search = "", filterStatus = "all", dateRange = "all", page = 1, limit = 20, patientId }) => {
   page = Math.max(parseInt(page, 10) || 1, 1);
   limit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const filter = {};
   if (filterStatus !== "all") filter.status = filterStatus;
+  if (patientId) filter.patientId = patientId;
   if (search) {
     const escapedSearch = escapeRegex(search);
     filter.$or = [

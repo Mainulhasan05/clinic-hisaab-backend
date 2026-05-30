@@ -10,8 +10,8 @@ const { createTestSchema, updateTestSchema } = require("../validations/labTestVa
 router.use(authenticate);
 
 router.get("/", ctrl.getAllTests);
-router.get("/customers", authorize("owner", "manager"), ctrl.getTestCustomerGroups);
-router.get("/customer-records", authorize("owner", "manager"), ctrl.getTestCustomerRecords);
+router.get("/customers", authorize("owner", "manager", "operator"), ctrl.getTestCustomerGroups);
+router.get("/customer-records", authorize("owner", "manager", "operator"), ctrl.getTestCustomerRecords);
 router.post("/", authorize("owner"), validate(createTestSchema), ctrl.createTest);
 router.put("/:id", authorize("owner"), validate(updateTestSchema), ctrl.updateTest);
 router.delete("/:id", authorize("owner"), ctrl.deleteTest);

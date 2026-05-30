@@ -499,6 +499,8 @@ const getMonthlyFinancials = async (months = 12) => {
         $group: {
           _id: { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: BUSINESS_TIMEZONE } },
           totalIncome: { $sum: "$totalAmount" },
+          labIncome: { $sum: { $cond: [{ $eq: ["$receiptType", "lab"] }, "$totalAmount", 0] } },
+          admissionIncome: { $sum: { $cond: [{ $eq: ["$receiptType", "admission"] }, "$totalAmount", 0] } },
         },
       },
     ]),
@@ -525,7 +527,11 @@ const getMonthlyFinancials = async (months = 12) => {
 
   const incomeMap = {};
   incomeResults.forEach((item) => {
-    incomeMap[item._id] = item.totalIncome;
+    incomeMap[item._id] = {
+      total: item.totalIncome || 0,
+      lab: item.labIncome || 0,
+      admission: item.admissionIncome || 0,
+    };
   });
 
   const expenseMap = {};
@@ -540,13 +546,15 @@ const getMonthlyFinancials = async (months = 12) => {
   });
 
   const monthlyFinancials = monthKeys.map((month) => {
-    const income = incomeMap[month] || 0;
+    const income = incomeMap[month] || { total: 0, lab: 0, admission: 0 };
     const expData = expenseMap[month] || { total: 0, breakdown: {} };
     return {
       month,
-      income,
+      income: income.total,
+      lab: income.lab,
+      admission: income.admission,
       expenses: expData.total,
-      profit: income - expData.total,
+      profit: income.total - expData.total,
       expenseBreakdown: expData.breakdown,
     };
   });
