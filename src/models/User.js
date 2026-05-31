@@ -90,6 +90,7 @@ userSchema.pre("save", async function (next) {
  * we must explicitly ask for it when we need to compare passwords.
  */
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!candidatePassword || !this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

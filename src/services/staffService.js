@@ -4,6 +4,13 @@ const AppError = require("../utils/AppError");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
+const serializeStaff = (staffDoc) => {
+  const staff = typeof staffDoc.toObject === "function" ? staffDoc.toObject() : { ...staffDoc };
+  staff.hasPassword = Boolean(staff.password);
+  delete staff.password;
+  return staff;
+};
+
 const getAllStaff = async ({ search = "" }) => {
   const filter = {};
   if (search) {
@@ -14,7 +21,8 @@ const getAllStaff = async ({ search = "" }) => {
     ];
 
   }
-  return User.find(filter).select("-password").sort({ createdAt: -1 });
+  const staff = await User.find(filter).select("+password").sort({ createdAt: -1 });
+  return staff.map(serializeStaff);
 };
 
 const createStaff = async (body, user) => {
@@ -35,9 +43,7 @@ const createStaff = async (body, user) => {
   });
 
   // Return without password
-  const staff = newStaff.toObject();
-  delete staff.password;
-  return staff;
+  return serializeStaff(newStaff);
 };
 
 const updateStaff = async (id, body, user) => {
@@ -46,22 +52,27 @@ const updateStaff = async (id, body, user) => {
     throw new AppError("You cannot change your own role.", 400);
   }
 
-  const staffDoc = await User.findById(id);
+  const staffDoc = await User.findById(id).select("+password");
   if (!staffDoc) throw new AppError("Staff member not found.", 404);
 
-  // If toggling software access OFF, clear password so they can't log in
+  if (!body.password) {
+    delete body.password;
+  }
+
+  if (body.softwareAccess === true && !staffDoc.password && !body.password) {
+    throw new AppError("Please set a password before enabling software access for this staff member.", 400);
+  }
+
+  // If toggling software access OFF, keep the password hash so access can be restored later.
   if (body.softwareAccess === false) {
     delete body.password;
-    staffDoc.password = undefined;
   }
 
   // Update fields on the document
   Object.assign(staffDoc, body);
   await staffDoc.save(); // Triggers pre-save password hash if password was modified
 
-  const staff = staffDoc.toObject();
-  delete staff.password;
-  return staff;
+  return serializeStaff(staffDoc);
 };
 
 const deleteStaff = async (id, user) => {

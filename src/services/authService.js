@@ -73,6 +73,10 @@ const login = async ({ phone, password }) => {
     throw new AppError("Your account does not have software access. Contact the administrator.", 403);
   }
 
+  if (!user.password) {
+    throw new AppError("No password is set for this account. Please ask the owner to set a new password.", 401);
+  }
+
   // Compare password
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
