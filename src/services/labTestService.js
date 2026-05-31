@@ -4,6 +4,14 @@ const AppError = require("../utils/AppError");
 const escapeRegex = require("../utils/escapeRegex");
 const { logActivity } = require("./activityService");
 
+const normalizeCategory = (body) => {
+  if (!Object.prototype.hasOwnProperty.call(body, "category")) return body;
+  return {
+    ...body,
+    category: String(body.category || "").trim() || "General",
+  };
+};
+
 const getAllTests = async ({ search = "" }) => {
   const filter = { isActive: true };
   if (search) {
@@ -13,7 +21,7 @@ const getAllTests = async ({ search = "" }) => {
 };
 
 const createTest = async (body, user) => {
-  const test = await LabTest.create(body);
+  const test = await LabTest.create(normalizeCategory(body));
   await logActivity({
     type: "test",
     description: `New lab test added: ${test.name} (৳${test.price})`,
@@ -26,7 +34,7 @@ const createTest = async (body, user) => {
 };
 
 const updateTest = async (id, body, user) => {
-  const test = await LabTest.findByIdAndUpdate(id, body, { new: true, runValidators: true });
+  const test = await LabTest.findByIdAndUpdate(id, normalizeCategory(body), { new: true, runValidators: true });
   if (!test) throw new AppError("Lab test not found.", 404);
   return test;
 };
