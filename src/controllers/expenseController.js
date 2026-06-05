@@ -10,7 +10,7 @@ const getAllExpenses = async (req, res, next) => {
 
 const getExpenseSummary = async (req, res, next) => {
   try {
-    const result = await expenseService.getExpenseSummary();
+    const result = await expenseService.getExpenseSummary(req.query);
     sendResponse(res, 200, "Expense summary fetched.", result);
   } catch (error) { next(error); }
 };
