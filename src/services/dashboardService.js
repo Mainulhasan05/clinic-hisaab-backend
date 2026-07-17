@@ -597,6 +597,85 @@ const getMonthlyFinancials = async (months = 12) => {
   };
 };
 
+const getCategoryReport = async ({ startDate = "", endDate = "" } = {}) => {
+  const match = { 
+    status: { $ne: "cancelled" },
+    receiptType: "lab"
+  };
+
+  if (startDate || endDate) {
+    match.createdAt = {};
+    if (startDate) {
+      match.createdAt.$gte = new Date(`${startDate}T00:00:00`);
+    }
+    if (endDate) {
+      match.createdAt.$lte = new Date(`${endDate}T23:59:59.999`);
+    }
+  }
+
+  const pipeline = [
+    { $match: match },
+    { $unwind: "$tests" },
+    {
+      $lookup: {
+        from: "labtests",
+        localField: "tests.name",
+        foreignField: "name",
+        as: "testDetails"
+      }
+    },
+    { $unwind: { path: "$testDetails", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        category: { $ifNull: ["$testDetails.category", "Uncategorized"] },
+        price: "$tests.price",
+        date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: BUSINESS_TIMEZONE } }
+      }
+    },
+    {
+      $group: {
+        _id: { category: "$category", date: "$date" },
+        totalAmount: { $sum: "$price" },
+        testCount: { $sum: 1 }
+      }
+    },
+    {
+      $group: {
+        _id: "$_id.category",
+        totalAmount: { $sum: "$totalAmount" },
+        testCount: { $sum: "$testCount" },
+        dates: {
+          $push: {
+            date: "$_id.date",
+            totalAmount: "$totalAmount",
+            testCount: "$testCount"
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        category: "$_id",
+        totalAmount: 1,
+        testCount: 1,
+        dates: 1
+      }
+    },
+    { $sort: { totalAmount: -1 } }
+  ];
+
+  const result = await Invoice.aggregate(pipeline);
+
+  result.forEach((item) => {
+    if (item.dates && Array.isArray(item.dates)) {
+      item.dates.sort((a, b) => b.date.localeCompare(a.date));
+    }
+  });
+
+  return result;
+};
+
 module.exports = {
   getDashboardStats,
   getDailySales,
@@ -604,4 +683,5 @@ module.exports = {
   getCollectionReport,
   getRecentActivity,
   getMonthlyFinancials,
+  getCategoryReport,
 };

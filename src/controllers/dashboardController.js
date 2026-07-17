@@ -43,4 +43,19 @@ const getMonthlyFinancials = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getDashboardStats, getDailySales, getAnalytics, getCollectionReport, getRecentActivity, getMonthlyFinancials };
+const getCategoryReport = async (req, res, next) => {
+  try {
+    const result = await dashboardService.getCategoryReport(req.query);
+    sendResponse(res, 200, "Category report fetched.", result);
+  } catch (error) { next(error); }
+};
+
+module.exports = {
+  getDashboardStats,
+  getDailySales,
+  getAnalytics,
+  getCollectionReport,
+  getRecentActivity,
+  getMonthlyFinancials,
+  getCategoryReport,
+};
