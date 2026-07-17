@@ -17,6 +17,7 @@ const staffRoutes = require("./routes/staffRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const smsRoutes = require("./routes/smsRoutes");
+const doctorRoutes = require("./routes/doctorRoutes");
 
 
 const app = express();
@@ -52,6 +53,7 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/sms", smsRoutes);
+app.use("/api/doctors", doctorRoutes);
 
 
 // --- Health Check ---

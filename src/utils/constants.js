@@ -44,6 +44,7 @@ const ACTIVITY_TYPES = [
   "staff",
   "test",
   "seat",
+  "doctor",
 ];
 
 module.exports = {

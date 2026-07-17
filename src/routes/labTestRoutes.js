@@ -12,8 +12,8 @@ router.use(authenticate);
 router.get("/", ctrl.getAllTests);
 router.get("/customers", authorize("owner", "manager", "operator"), ctrl.getTestCustomerGroups);
 router.get("/customer-records", authorize("owner", "manager", "operator"), ctrl.getTestCustomerRecords);
-router.post("/", authorize("owner"), validate(createTestSchema), ctrl.createTest);
-router.put("/:id", authorize("owner"), validate(updateTestSchema), ctrl.updateTest);
-router.delete("/:id", authorize("owner"), ctrl.deleteTest);
+router.post("/", authorize("owner", "manager"), validate(createTestSchema), ctrl.createTest);
+router.put("/:id", authorize("owner", "manager"), validate(updateTestSchema), ctrl.updateTest);
+router.delete("/:id", authorize("owner", "manager"), ctrl.deleteTest);
 
 module.exports = router;
