@@ -145,6 +145,8 @@ const getTestCustomerRecords = async ({
   testName = "all",
   filterStatus = "all",
   dateRange = "all",
+  startDate = "",
+  endDate = "",
   page = 1,
   limit = 20,
 } = {}) => {
@@ -178,40 +180,51 @@ const getTestCustomerRecords = async ({
   // Date range filtering
   if (dateRange && dateRange !== "all") {
     const now = new Date();
-    let startDate, endDate;
+    let start, end;
 
     switch (dateRange) {
       case "today": {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         break;
       }
       case "yesterday": {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         break;
       }
       case "last7": {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         break;
       }
       case "last30": {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         break;
       }
       case "thisMonth": {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      }
+      case "custom": {
+        if (startDate) {
+          start = new Date(`${startDate}T00:00:00`);
+        }
+        if (endDate) {
+          end = new Date(`${endDate}T23:59:59.999`);
+        }
         break;
       }
       default:
         break;
     }
 
-    if (startDate && endDate) {
-      filter.createdAt = { $gte: startDate, $lt: endDate };
+    if (start || end) {
+      filter.createdAt = {};
+      if (start) filter.createdAt.$gte = start;
+      if (end) filter.createdAt.$lte = end;
     }
   }
 
